@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   LayoutDashboard,
   Car,
@@ -20,6 +20,7 @@ import {
   CheckCircle2,
   AlertTriangle,
 } from 'lucide-react';
+import { suvidhaApi } from './services/apiClient';
 import {
   UserRole,
   MunicipalEntity,
@@ -126,6 +127,54 @@ export default function App() {
     setTimeout(() => setToastMessage(null), 4000);
   };
 
+  // Hydrate from live /api/v1 backend on startup
+  useEffect(() => {
+    let mounted = true;
+    async function syncFromBackend() {
+      const [
+        srvEntities,
+        srvRates,
+        srvDues,
+        srvPayments,
+        srvReceipts,
+        srvClosings,
+        srvRecons,
+        srvDisputes,
+        srvUsers,
+        srvNotifs,
+        srvAudits,
+      ] = await Promise.all([
+        suvidhaApi.request<MunicipalEntity[]>('ADMIN', '/entities?limit=100'),
+        suvidhaApi.request<RateMaster[]>('ADMIN', '/rates'),
+        suvidhaApi.request<DueRecord[]>('ADMIN', '/dues?limit=100'),
+        suvidhaApi.request<PaymentRecord[]>('ADMIN', '/payments?limit=100'),
+        suvidhaApi.request<ReceiptRecord[]>('ADMIN', '/receipts?limit=100'),
+        suvidhaApi.request<DailyClosingRecord[]>('ADMIN', '/collections/closing'),
+        suvidhaApi.request<ReconciliationItem[]>('ADMIN', '/reconciliation'),
+        suvidhaApi.request<RefundDisputeRecord[]>('ADMIN', '/disputes'),
+        suvidhaApi.request<SystemUser[]>('ADMIN', '/users?limit=100'),
+        suvidhaApi.request<NotificationLog[]>('ADMIN', '/notifications?limit=100'),
+        suvidhaApi.request<AuditLogEntry[]>('ADMIN', '/audit-logs?limit=100'),
+      ]);
+      if (!mounted) return;
+      if (srvEntities) setEntities(srvEntities);
+      if (srvRates) setRates(srvRates);
+      if (srvDues) setDues(srvDues);
+      if (srvPayments) setPayments(srvPayments);
+      if (srvReceipts) setReceipts(srvReceipts);
+      if (srvClosings) setClosings(srvClosings);
+      if (srvRecons) setReconciliations(srvRecons);
+      if (srvDisputes) setDisputes(srvDisputes);
+      if (srvUsers) setUsers(srvUsers);
+      if (srvNotifs) setNotifications(srvNotifs);
+      if (srvAudits) setAuditLogs(srvAudits);
+    }
+    syncFromBackend();
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
   const appendAuditLog = (
     action: string,
     module: string,
@@ -161,6 +210,20 @@ export default function App() {
   // Interactive Handlers
   const handleAddEntity = (newEnt: MunicipalEntity) => {
     setEntities((prev) => [newEnt, ...prev]);
+    void suvidhaApi.request('ADMIN', '/entities', {
+      method: 'POST',
+      body: JSON.stringify({
+        registrationNumber: newEnt.registrationNumber,
+        entityType: newEnt.entityType,
+        name: newEnt.name,
+        mobile: newEnt.mobile,
+        address: newEnt.address,
+        categoryId: newEnt.categoryId,
+        vehicleType: newEnt.vehicleType,
+        stallLocation: newEnt.stallLocation,
+        wardId: newEnt.wardId,
+      }),
+    });
     appendAuditLog(
       'ENTITY_REGISTRATION_SUBMITTED',
       'ENTITY_REGISTRY',
@@ -191,6 +254,17 @@ export default function App() {
             }
           : e
       )
+    );
+    void suvidhaApi.request(
+      'ADMIN',
+      `/entities/${entityId}/${regStatus === 'ACTIVE' ? 'approve' : 'reject'}`,
+      {
+        method: 'POST',
+        body: JSON.stringify({
+          comments: comment,
+          govVerificationStatus: govStatus,
+        }),
+      }
     );
     appendAuditLog(
       regStatus === 'ACTIVE'
