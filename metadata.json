@@ -1,0 +1,6 @@
+{
+  "name": "SuvidhaPay — Municipal Collection Management System",
+  "description": "Complete municipal ERP and collection management platform for digitizing registrations, rate masters, due ledgers, field collections, officer approvals, financial reconciliation, citizen services, and audit compliance.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
