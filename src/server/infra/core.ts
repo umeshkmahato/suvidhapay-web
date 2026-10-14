@@ -16,7 +16,7 @@ export interface AppConfig {
 
 export function loadConfig(): AppConfig {
   return {
-    port: Number(process.env.PORT || 3000),
+    port: 3000,
     nodeEnv: process.env.NODE_ENV || 'development',
     dataDir: process.env.SUVIDHAPAY_DATA_DIR || './data',
     jwtAccessSecret:
