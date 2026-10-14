@@ -35,6 +35,7 @@ export interface IPaymentGatewayAdapter {
   }): boolean;
 }
 
+// TODO [Live Bank Payment Gateway Adapter]: Intentionally deferred until ULB merchant banking KYC, escrow account, and live webhook secrets are provisioned. Replace MockPaymentGatewayAdapter with Razorpay/Cashfree SDK integration.
 export class MockPaymentGatewayAdapter implements IPaymentGatewayAdapter {
   public async createOrder(params: {
     paymentId: string;
@@ -91,6 +92,7 @@ export interface INotificationAdapter {
   }): Promise<NotificationDispatchResult>;
 }
 
+// TODO [Telecom DLT SMS/WhatsApp Provider]: Intentionally deferred until ULB telecom DLT portal registration and pre-approved template IDs are assigned. Replace MockNotificationAdapter with production telecom gateway (e.g. Twilio, Gupshup, or CDAC SMS).
 export class MockNotificationAdapter implements INotificationAdapter {
   public async dispatch(params: {
     channel: NotificationChannel;
@@ -132,6 +134,7 @@ export interface IGovVerificationAdapter {
   }): Promise<GovVerificationLookupResult>;
 }
 
+// TODO [Live Parivahan Vahan & PM SVANidhi APIs]: Intentionally deferred until MoRTH Parivahan NIC API credentials and secure VPN IP whitelisting are authorized for the municipal corporation. Replace MockGovVerificationAdapter with direct NIC SOAP/REST calls.
 export class MockGovVerificationAdapter implements IGovVerificationAdapter {
   public async verifyVehicleOrVendor(params: {
     registrationNumber: string;

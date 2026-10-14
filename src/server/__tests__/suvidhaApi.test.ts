@@ -3,12 +3,12 @@ import path from 'path';
 import os from 'os';
 import request from 'supertest';
 import { describe, it, expect, beforeEach, afterAll } from 'vitest';
-import { JsonFileDataStore } from '../repositories/jsonDataStore';
+import { LokiDataStore } from '../repositories/lokiDataStore';
 import { createSuvidhaApiApp } from '../app';
 
 describe('SuvidhaPay Complete Backend REST API (/api/v1) Suite', () => {
   let tempDir: string;
-  let store: JsonFileDataStore;
+  let store: LokiDataStore;
   let app: ReturnType<typeof createSuvidhaApiApp>;
 
   let adminToken = '';
@@ -19,7 +19,7 @@ describe('SuvidhaPay Complete Backend REST API (/api/v1) Suite', () => {
 
   beforeEach(async () => {
     tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'suvidhapay-test-'));
-    store = new JsonFileDataStore(tempDir);
+    store = new LokiDataStore(tempDir);
     await store.resetToDeterministicSeed();
     app = createSuvidhaApiApp(store);
 

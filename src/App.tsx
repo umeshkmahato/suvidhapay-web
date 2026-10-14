@@ -60,6 +60,7 @@ import {
   INITIAL_NOTIFICATIONS,
   INITIAL_AUDIT_LOGS,
   formatInr,
+  Money,
 } from './data/mockSuvidhaData';
 import {
   ReceiptDetailModal,
@@ -127,10 +128,9 @@ export default function App() {
     setTimeout(() => setToastMessage(null), 4000);
   };
 
-  // Hydrate from live /api/v1 backend on startup
-  useEffect(() => {
-    let mounted = true;
-    async function syncFromBackend() {
+  // Centralized Refresh Function to sync all master state from live backend
+  const refreshData = async () => {
+    try {
       const [
         srvEntities,
         srvRates,
@@ -156,7 +156,6 @@ export default function App() {
         suvidhaApi.request<NotificationLog[]>('ADMIN', '/notifications?limit=100'),
         suvidhaApi.request<AuditLogEntry[]>('ADMIN', '/audit-logs?limit=100'),
       ]);
-      if (!mounted) return;
       if (srvEntities) setEntities(srvEntities);
       if (srvRates) setRates(srvRates);
       if (srvDues) setDues(srvDues);
@@ -168,8 +167,15 @@ export default function App() {
       if (srvUsers) setUsers(srvUsers);
       if (srvNotifs) setNotifications(srvNotifs);
       if (srvAudits) setAuditLogs(srvAudits);
+    } catch (err) {
+      console.error('Failed to sync data from backend:', err);
     }
-    syncFromBackend();
+  };
+
+  // Hydrate from live /api/v1 backend on startup
+  useEffect(() => {
+    let mounted = true;
+    void refreshData();
     return () => {
       mounted = false;
     };
@@ -185,7 +191,7 @@ export default function App() {
   ) => {
     const newEntry: AuditLogEntry = {
       id: `AUD-${10090 + auditLogs.length + 1}`,
-      timestamp: '10/10/2026 11:42:10',
+      timestamp: new Date().toLocaleString('en-IN'),
       actorName:
         activeRole === 'ADMIN'
           ? 'Anupam Kulkarni (Admin)'
@@ -207,10 +213,9 @@ export default function App() {
     setAuditLogs((prev) => [newEntry, ...prev]);
   };
 
-  // Interactive Handlers
-  const handleAddEntity = (newEnt: MunicipalEntity) => {
-    setEntities((prev) => [newEnt, ...prev]);
-    void suvidhaApi.request('ADMIN', '/entities', {
+  // Interactive Handlers — Connected to Authoritative REST Backend
+  const handleAddEntity = async (newEnt: MunicipalEntity) => {
+    const res = await suvidhaApi.requestWithMeta<MunicipalEntity>('ADMIN', '/entities', {
       method: 'POST',
       body: JSON.stringify({
         registrationNumber: newEnt.registrationNumber,
@@ -224,186 +229,112 @@ export default function App() {
         wardId: newEnt.wardId,
       }),
     });
-    appendAuditLog(
-      'ENTITY_REGISTRATION_SUBMITTED',
-      'ENTITY_REGISTRY',
-      newEnt.entityType,
-      newEnt.id,
-      'None',
-      `Registered ${newEnt.registrationNumber} (${newEnt.name}) — Status: SUBMITTED`
-    );
-    showToast(
-      `Registration ${newEnt.registrationNumber} submitted to Officer Approval Queue.`
-    );
+    if (res.success && res.data) {
+      showToast(`Registration ${res.data.registrationNumber} submitted to Officer Approval Queue.`);
+      await refreshData();
+    } else {
+      showToast(res.error?.message || 'Failed to submit registration');
+    }
   };
 
-  const handleUpdateEntityStatus = (
+  const handleUpdateEntityStatus = async (
     entityId: string,
     regStatus: RegistrationStatus,
     govStatus: GovVerificationStatus,
     comment: string
   ) => {
-    setEntities((prev) =>
-      prev.map((e) =>
-        e.id === entityId
-          ? {
-              ...e,
-              registrationStatus: regStatus,
-              govVerificationStatus: govStatus,
-              officerComments: comment,
-            }
-          : e
-      )
-    );
-    void suvidhaApi.request(
-      'ADMIN',
-      `/entities/${entityId}/${regStatus === 'ACTIVE' ? 'approve' : 'reject'}`,
-      {
-        method: 'POST',
-        body: JSON.stringify({
-          comments: comment,
-          govVerificationStatus: govStatus,
-        }),
-      }
-    );
-    appendAuditLog(
-      regStatus === 'ACTIVE'
-        ? 'OFFICERAPPROVEDREGISTRATION'
-        : 'OFFICERREJECTEDREGISTRATION',
-      'REGISTRATION_APPROVAL',
-      'ENTITY',
-      entityId,
-      'Status: SUBMITTED',
-      `Status: ${regStatus}, GovVerify: ${govStatus}, Note: ${comment}`
-    );
-    showToast(`Entity ${entityId} updated to ${regStatus}.`);
+    const endpoint = regStatus === 'ACTIVE' ? `/entities/${entityId}/approve` : `/entities/${entityId}/reject`;
+    const res = await suvidhaApi.requestWithMeta('OFFICER', endpoint, {
+      method: 'POST',
+      body: JSON.stringify({
+        comments: comment,
+        govVerificationStatus: govStatus,
+      }),
+    });
+    if (res.success) {
+      showToast(`Entity ${entityId} updated to ${regStatus}.`);
+      await refreshData();
+    } else {
+      showToast(res.error?.message || 'Failed to update registration status');
+    }
   };
 
-  const handleGenerateBatchDues = (newDues: DueRecord[]) => {
-    setDues((prev) => [...newDues, ...prev]);
-    appendAuditLog(
-      'BATCH_DUES_GENERATED',
-      'DUE_ENGINE',
-      'DUE_BATCH',
-      newDues[0]?.id || 'BATCH',
-      '0 records for Nov 2026',
-      `Generated ${newDues.length} sample ledger records using Rate ${newDues[0]?.rateId}`
-    );
-    showToast('Batch Due Generation committed to immutable financial ledger.');
+  const handleGenerateBatchDues = async (newDues: DueRecord[]) => {
+    if (!newDues.length) return;
+    const first = newDues[0];
+    const cat = categories.find((c) => c.name === first.categoryName) || categories[0];
+    const res = await suvidhaApi.requestWithMeta('ADMIN', '/dues/batch-generate', {
+      method: 'POST',
+      body: JSON.stringify({
+        categoryId: cat.id,
+        wardScope: 'ALL',
+        periodLabel: 'Nov 2026',
+        periodStart: '2026-11-01',
+        periodEnd: '2026-11-30',
+        dueDate: '2026-11-15',
+        commit: true,
+      }),
+    });
+    if (res.success) {
+      showToast('Batch Due Generation committed to immutable financial ledger.');
+      await refreshData();
+    } else {
+      showToast(res.error?.message || 'Batch due generation failed');
+    }
   };
 
-  const handleCreateAdjustment = (adj: DueAdjustment) => {
-    setAdjustments((prev) => [adj, ...prev]);
-    appendAuditLog(
-      'ADJUSTMENT_WAIVER_REQUESTED',
-      'DUE_LEDGER',
-      adj.type,
-      adj.id,
-      `Before Balance: ${formatInr(adj.beforeBalance)}`,
-      `Requested ${adj.type} of ${formatInr(adj.amountInr)} (Pending Approval)`
-    );
-    showToast(`${adj.type} request ${adj.id} submitted for approval.`);
+  const handleCreateAdjustment = async (adj: DueAdjustment) => {
+    const isWaiver = adj.type === 'WAIVER';
+    const endpoint = `/dues/${adj.dueId}/${isWaiver ? 'waive' : 'adjust'}`;
+    const payload = isWaiver
+      ? {
+          waiverAmountPaise: Money.inrToPaise(adj.amountInr),
+          reason: adj.reason,
+          supportingDocumentRef: adj.supportingRef,
+        }
+      : {
+          adjustedAmountPaise: Money.inrToPaise(adj.amountInr),
+          reason: adj.reason,
+          supportingDocumentRef: adj.supportingRef,
+        };
+
+    const res = await suvidhaApi.requestWithMeta('OFFICER', endpoint, {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+    if (res.success) {
+      showToast(`${adj.type} of ${formatInr(adj.amountInr)} committed.`);
+      await refreshData();
+    } else {
+      showToast(res.error?.message || 'Failed to process adjustment');
+    }
   };
 
-  const handleApproveRejectAdjustment = (
+  const handleApproveRejectAdjustment = async (
     id: string,
     status: 'APPROVED' | 'REJECTED'
   ) => {
-    const target = adjustments.find((a) => a.id === id);
     setAdjustments((prev) =>
-      prev.map((a) =>
-        a.id === id
-          ? {
-              ...a,
-              approvalStatus: status,
-              reviewedBy: 'Anupam Kulkarni (Admin)',
-              reviewedAt: '10/10/2026 11:45',
-            }
-          : a
-      )
-    );
-    if (target && status === 'APPROVED') {
-      setDues((prev) =>
-        prev.map((d) =>
-          d.id === target.dueId
-            ? {
-                ...d,
-                waiversAmount: d.waiversAmount + target.amountInr,
-                outstandingAmount: Math.max(
-                  0,
-                  d.outstandingAmount - target.amountInr
-                ),
-                status:
-                  d.outstandingAmount - target.amountInr <= 0
-                    ? 'WAIVED'
-                    : d.status,
-              }
-            : d
-        )
-      );
-    }
-    appendAuditLog(
-      status === 'APPROVED' ? 'OFFICERAPPROVEDWAIVER' : 'OFFICERREJECTEDWAIVER',
-      'DUE_LEDGER',
-      'ADJUSTMENT',
-      id,
-      'Status: PENDING',
-      `Status: ${status}`
+      prev.map((a) => (a.id === id ? { ...a, approvalStatus: status } : a))
     );
     showToast(`Adjustment ${id} marked as ${status}.`);
+    await refreshData();
   };
 
-  const handleVerifyManualUpi = (paymentId: string) => {
-    const targetPay = payments.find((p) => p.id === paymentId);
-    if (!targetPay) return;
-    const newReceiptNo = `SUP/2026/0000123${47 + receipts.length}`;
-    const newReceipt: ReceiptRecord = {
-      id: `RCP-0${receipts.length + 1}`,
-      receiptNumber: newReceiptNo,
-      paymentId: targetPay.id,
-      entityId: targetPay.entityId,
-      entityName: targetPay.entityName,
-      registrationNumber: targetPay.registrationNumber,
-      categoryName: targetPay.categoryName,
-      wardName: targetPay.wardName,
-      dateTime: '10/10/2026 11:46:00',
-      previousOutstanding: targetPay.amountInr + 300,
-      currentPayment: targetPay.amountInr,
-      allocatedAmount: targetPay.amountInr,
-      remainingOutstanding: 300,
-      paymentMethod: targetPay.method,
-      transactionReference: targetPay.referenceNumber,
-      agentName: targetPay.collectedBy,
-      agentId: 'AG-104',
-      verificationCode: `VRF-${Date.now().toString().slice(-4)}-SUP26`,
-      status: 'VALID',
-    };
-    setReceipts((prev) => [newReceipt, ...prev]);
-    setPayments((prev) =>
-      prev.map((p) =>
-        p.id === paymentId
-          ? {
-              ...p,
-              processingStatus: 'RECEIPT_GENERATED',
-              settlementStatus: 'SETTLED',
-              receiptNumber: newReceiptNo,
-              verifiedBy: 'Rajeshwari Verma (RO)',
-              verifiedAt: '10/10/2026 11:46:00',
-            }
-          : p
-      )
-    );
-    appendAuditLog(
-      'OFFICER_VERIFIED_MANUAL_UPI_UTR',
-      'PAYMENT_VERIFICATION',
-      'PAYMENT',
-      paymentId,
-      'Status: UNVERIFIED_MANUAL_REF',
-      `Verified UTR ${targetPay.referenceNumber} -> Issued ${newReceiptNo}`
-    );
-    showToast(
-      `Manual UPI UTR verified! Official Receipt ${newReceiptNo} generated.`
-    );
+  const handleVerifyManualUpi = async (paymentId: string) => {
+    const res = await suvidhaApi.requestWithMeta<ReceiptRecord>('OFFICER', `/payments/${paymentId}/verify`, {
+      method: 'POST',
+      body: JSON.stringify({
+        verified: true,
+        officerNotes: 'Verified against municipal bank statement scroll',
+      }),
+    });
+    if (res.success && res.data) {
+      showToast(`Manual UPI UTR verified! Official Receipt ${res.data.receiptNumber} generated.`);
+      await refreshData();
+    } else {
+      showToast(res.error?.message || 'Failed to verify manual UPI UTR');
+    }
   };
 
   const handleRecordCollection = (
@@ -414,47 +345,106 @@ export default function App() {
     isOffline: boolean
   ): ReceiptRecord => {
     const isManualUpi = method === 'UPI_REFERENCE';
-    const receiptNo = isOffline
-      ? `PROV-OFFLINE-${Date.now().toString().slice(-5)}`
-      : isManualUpi
-      ? `ACK-UPI-PENDING-${Date.now().toString().slice(-4)}`
-      : `SUP/2026/0000123${47 + receipts.length}`;
 
+    if (isOffline) {
+      const receiptNo = `PROV-OFFLINE-${Date.now().toString().slice(-5)}`;
+      const newPayId = `PAY-OFFLINE-${Date.now().toString().slice(-4)}`;
+      const provReceipt: ReceiptRecord = {
+        id: `RCP-PROV-${Date.now().toString().slice(-4)}`,
+        receiptNumber: receiptNo,
+        paymentId: newPayId,
+        entityId: entity.id,
+        entityName: entity.name,
+        registrationNumber: entity.registrationNumber,
+        categoryName: entity.category,
+        wardName: entity.wardName,
+        dateTime: new Date().toLocaleString('en-IN'),
+        previousOutstanding: entity.outstandingAmount,
+        currentPayment: amount,
+        allocatedAmount: 0,
+        remainingOutstanding: entity.outstandingAmount,
+        paymentMethod: method,
+        transactionReference: reference,
+        agentName: 'Suresh Kumar Sharma (AG-104)',
+        agentId: 'AG-104',
+        verificationCode: `VRF-OFFLINE-${Date.now().toString().slice(-4)}`,
+        status: 'PROVISIONAL_OFFLINE',
+      };
+      setReceipts((prev) => [provReceipt, ...prev]);
+      showToast('Provisional offline submission queued locally.');
+      return provReceipt;
+    }
+
+    if (isManualUpi) {
+      // Async call backend for Manual UPI logging
+      void (async () => {
+        const res = await suvidhaApi.requestWithMeta<PaymentRecord>('AGENT', '/payments/manual-upi', {
+          method: 'POST',
+          headers: { 'Idempotency-Key': `upi-${entity.id}-${Date.now()}` },
+          body: JSON.stringify({
+            entityId: entity.id,
+            amountPaise: Money.inrToPaise(amount),
+            upiReferenceNumber: reference,
+            payerMobile: entity.mobile,
+            notes: 'Field manual UPI UTR reference logged',
+          }),
+        });
+        if (res.success) {
+          showToast(`Manual UPI UTR ${reference} recorded. Status: PENDING_VERIFICATION.`);
+          await refreshData();
+        } else {
+          showToast(res.error?.message || 'Failed to log manual UPI reference');
+        }
+      })();
+
+      const ackReceipt: ReceiptRecord = {
+        id: `ACK-UPI-${Date.now().toString().slice(-4)}`,
+        receiptNumber: `ACK-UPI-${reference.slice(-6)}`,
+        paymentId: `PAY-UPI-${Date.now().toString().slice(-4)}`,
+        entityId: entity.id,
+        entityName: entity.name,
+        registrationNumber: entity.registrationNumber,
+        categoryName: entity.category,
+        wardName: entity.wardName,
+        dateTime: new Date().toLocaleString('en-IN'),
+        previousOutstanding: entity.outstandingAmount,
+        currentPayment: amount,
+        allocatedAmount: 0,
+        remainingOutstanding: entity.outstandingAmount,
+        paymentMethod: method,
+        transactionReference: reference,
+        agentName: 'Suresh Kumar Sharma (AG-104)',
+        agentId: 'AG-104',
+        verificationCode: `ACK-${Date.now().toString().slice(-4)}`,
+        status: 'PENDING_UPI_VERIFICATION',
+      };
+      setReceipts((prev) => [ackReceipt, ...prev]);
+      return ackReceipt;
+    }
+
+    // CASH PAYMENT
+    const receiptNo = `SUP/2026/0000123${47 + receipts.length}`;
     const newPayId = `PAY-2026-${9085 + payments.length}`;
-    const newPay: PaymentRecord = {
-      id: newPayId,
-      entityId: entity.id,
-      entityName: entity.name,
-      registrationNumber: entity.registrationNumber,
-      wardName: entity.wardName,
-      categoryName: entity.category,
-      amountInr: amount,
-      method,
-      referenceNumber: reference,
-      processingStatus:
-        isOffline || isManualUpi ? 'PENDING' : 'RECEIPT_GENERATED',
-      settlementStatus: isOffline
-        ? 'PROVISIONAL_OFFLINE'
-        : isManualUpi
-        ? 'UNVERIFIED_MANUAL_REF'
-        : 'SETTLED',
-      receiptNumber: receiptNo,
-      collectedBy: 'Suresh Kumar Sharma (AG-104)',
-      collectedByRole: 'AGENT',
-      timestamp: '10/10/2026 11:48:12',
-      allocations: [
-        {
-          dueId: 'DUE-2026-101',
-          periodLabel: 'FIFO Due Allocation',
-          feeType: entity.category,
-          dueOriginalAmount: entity.outstandingAmount,
-          allocatedAmount: amount,
-          remainingDueBalance: Math.max(0, entity.outstandingAmount - amount),
-        },
-      ],
-    };
 
-    const newReceipt: ReceiptRecord = {
+    void (async () => {
+      const res = await suvidhaApi.requestWithMeta<ReceiptRecord>('AGENT', '/payments/cash', {
+        method: 'POST',
+        headers: { 'Idempotency-Key': `cash-${entity.id}-${Date.now()}` },
+        body: JSON.stringify({
+          entityId: entity.id,
+          amountPaise: Money.inrToPaise(amount),
+          notes: `Field collection by AG-104 for ${entity.registrationNumber}`,
+        }),
+      });
+      if (res.success && res.data) {
+        showToast(`Cash payment verified! Receipt ${res.data.receiptNumber} issued.`);
+        await refreshData();
+      } else {
+        showToast(res.error?.message || 'Cash payment failed');
+      }
+    })();
+
+    const cashReceipt: ReceiptRecord = {
       id: `RCP-0${receipts.length + 1}`,
       receiptNumber: receiptNo,
       paymentId: newPayId,
@@ -463,58 +453,32 @@ export default function App() {
       registrationNumber: entity.registrationNumber,
       categoryName: entity.category,
       wardName: entity.wardName,
-      dateTime: '10/10/2026 11:48:12',
+      dateTime: new Date().toLocaleString('en-IN'),
       previousOutstanding: entity.outstandingAmount,
       currentPayment: amount,
-      allocatedAmount: isManualUpi || isOffline ? 0 : amount,
-      remainingOutstanding:
-        isManualUpi || isOffline
-          ? entity.outstandingAmount
-          : Math.max(0, entity.outstandingAmount - amount),
+      allocatedAmount: amount,
+      remainingOutstanding: Math.max(0, entity.outstandingAmount - amount),
       paymentMethod: method,
       transactionReference: reference,
       agentName: 'Suresh Kumar Sharma',
       agentId: 'AG-104',
       verificationCode: `VRF-${Date.now().toString().slice(-4)}-SUP26`,
-      status: isOffline
-        ? 'PROVISIONAL_OFFLINE'
-        : isManualUpi
-        ? 'PENDING_UPI_VERIFICATION'
-        : 'VALID',
+      status: 'VALID',
     };
 
-    setPayments((prev) => [newPay, ...prev]);
-    setReceipts((prev) => [newReceipt, ...prev]);
-
-    // Only deduct from authoritative balance if verified Cash (not unverified manual UPI or provisional offline)
-    if (!isManualUpi && !isOffline) {
-      setEntities((prev) =>
-        prev.map((e) =>
-          e.id === entity.id
-            ? {
-                ...e,
-                paidAllocated: e.paidAllocated + amount,
-                outstandingAmount: Math.max(0, e.outstandingAmount - amount),
-              }
-            : e
-        )
-      );
-    }
-
-    appendAuditLog(
-      isManualUpi
-        ? 'AGENTCREATEDMANUAL_UPI_REF'
-        : 'AGENTCREATEDCASH_PAYMENT',
-      'FIELD_COLLECTIONS',
-      'PAYMENT',
-      newPayId,
-      `Entity ${entity.registrationNumber} Due: ${formatInr(
-        entity.outstandingAmount
-      )}`,
-      `Amount: ${formatInr(amount)} (${method}), Ref: ${reference}, Doc: ${receiptNo}`
+    setReceipts((prev) => [cashReceipt, ...prev]);
+    setEntities((prev) =>
+      prev.map((e) =>
+        e.id === entity.id
+          ? {
+              ...e,
+              paidAllocated: e.paidAllocated + amount,
+              outstandingAmount: Math.max(0, e.outstandingAmount - amount),
+            }
+          : e
+      )
     );
-
-    return newReceipt;
+    return cashReceipt;
   };
 
   const handleCitizenOnlinePay = (
@@ -522,16 +486,54 @@ export default function App() {
     amount: number
   ): ReceiptRecord => {
     const receiptNo = `SUP/2026/0000123${47 + receipts.length}`;
+    const payId = `PAY-2026-${9090 + payments.length}`;
+
+    // Execute backend order + simulated settlement webhook
+    void (async () => {
+      const orderRes = await suvidhaApi.requestWithMeta<{ orderId: string; amountPaise: number }>(
+        'CITIZEN',
+        '/payments/orders',
+        {
+          method: 'POST',
+          body: JSON.stringify({
+            entityId: entity.id,
+            amountPaise: Money.inrToPaise(amount),
+          }),
+        }
+      );
+
+      if (orderRes.success && orderRes.data) {
+        const webhookRes = await suvidhaApi.requestWithMeta<ReceiptRecord>(
+          'CITIZEN',
+          '/payments/webhook',
+          {
+            method: 'POST',
+            body: JSON.stringify({
+              event: 'payment.captured',
+              orderId: orderRes.data.orderId,
+              paymentId: `pay_RzpCitizen_${Date.now().toString().slice(-5)}`,
+              amountPaise: orderRes.data.amountPaise,
+              gatewaySignature: 'sig_mock_verified',
+            }),
+          }
+        );
+        if (webhookRes.success && webhookRes.data) {
+          showToast(`Citizen Online Payment Verified! Receipt ${webhookRes.data.receiptNumber} issued.`);
+          await refreshData();
+        }
+      }
+    })();
+
     const newReceipt: ReceiptRecord = {
       id: `RCP-0${receipts.length + 1}`,
       receiptNumber: receiptNo,
-      paymentId: `PAY-2026-${9090 + payments.length}`,
+      paymentId: payId,
       entityId: entity.id,
       entityName: entity.name,
       registrationNumber: entity.registrationNumber,
       categoryName: entity.category,
       wardName: entity.wardName,
-      dateTime: '10/10/2026 11:50:00',
+      dateTime: new Date().toLocaleString('en-IN'),
       previousOutstanding: amount,
       currentPayment: amount,
       allocatedAmount: amount,
@@ -543,6 +545,7 @@ export default function App() {
       verificationCode: `VRF-${Date.now().toString().slice(-4)}-SUP26`,
       status: 'VALID',
     };
+
     setReceipts((prev) => [newReceipt, ...prev]);
     setEntities((prev) =>
       prev.map((e) =>
@@ -555,15 +558,6 @@ export default function App() {
           : e
       )
     );
-    appendAuditLog(
-      'PAYMENTWEBHOOKRECEIVED',
-      'CITIZEN_PORTAL',
-      'PAYMENT',
-      newReceipt.paymentId,
-      `Due: ${formatInr(amount)}`,
-      `Verified Gateway Payment -> Receipt ${receiptNo}`
-    );
-    showToast(`Citizen Online Payment Verified! Receipt ${receiptNo} issued.`);
     return newReceipt;
   };
 
@@ -795,37 +789,35 @@ export default function App() {
                 reconciliations={reconciliations}
                 disputes={disputes}
                 onVerifyManualUpi={handleVerifyManualUpi}
-                onResolveReconciliation={(id, note) => {
-                  setReconciliations((prev) =>
-                    prev.map((r) =>
-                      r.id === id
-                        ? { ...r, status: 'MATCHED', reviewNotes: note }
-                        : r
-                    )
-                  );
-                  appendAuditLog(
-                    'RECONCILIATION_EXCEPTION_RESOLVED',
-                    'RECONCILIATION',
-                    'RECON_ITEM',
-                    id,
-                    'Status: EXCEPTION',
-                    `Resolved -> MATCHED (${note})`
-                  );
-                  showToast(`Reconciliation item ${id} resolved and audited.`);
+                onResolveReconciliation={async (id, note) => {
+                  const res = await suvidhaApi.requestWithMeta('OFFICER', `/reconciliation/${id}/resolve`, {
+                    method: 'POST',
+                    body: JSON.stringify({
+                      resolutionStatus: 'RESOLVED',
+                      reviewNotes: note,
+                    }),
+                  });
+                  if (res.success) {
+                    showToast(`Reconciliation item ${id} resolved.`);
+                    await refreshData();
+                  } else {
+                    showToast(res.error?.message || 'Failed to resolve reconciliation item');
+                  }
                 }}
-                onResolveDispute={(id, status) => {
-                  setDisputes((prev) =>
-                    prev.map((d) => (d.id === id ? { ...d, status } : d))
-                  );
-                  appendAuditLog(
-                    'DISPUTE_REVERSAL_ADJUDICATED',
-                    'DISPUTES',
-                    'DISPUTE',
-                    id,
-                    'Status: OPEN',
-                    `Adjudicated -> ${status}`
-                  );
-                  showToast(`Dispute/Reversal ${id} marked ${status}.`);
+                onResolveDispute={async (id, status) => {
+                  const res = await suvidhaApi.requestWithMeta('OFFICER', `/disputes/${id}/resolve`, {
+                    method: 'POST',
+                    body: JSON.stringify({
+                      status,
+                      resolutionNotes: `Adjudicated as ${status} by Officer`,
+                    }),
+                  });
+                  if (res.success) {
+                    showToast(`Dispute/Reversal ${id} marked ${status}.`);
+                    await refreshData();
+                  } else {
+                    showToast(res.error?.message || 'Failed to adjudicate dispute');
+                  }
                 }}
               />
             )}
@@ -834,29 +826,20 @@ export default function App() {
               <CashControlAndReceiptsView
                 closings={closings}
                 receipts={receipts}
-                onVerifyClosing={(id, status, comment) => {
-                  setClosings((prev) =>
-                    prev.map((c) =>
-                      c.id === id
-                        ? {
-                            ...c,
-                            status,
-                            verifyingOfficer: 'Rajeshwari Verma (RO)',
-                            officerComments: comment,
-                            verifiedAt: '10/10/2026 11:52',
-                          }
-                        : c
-                    )
-                  );
-                  appendAuditLog(
-                    'OFFICER_VERIFIED_CASH_CLOSING',
-                    'CASH_CLOSING',
-                    'CLOSING',
-                    id,
-                    'Status: SUBMITTED',
-                    `Status: ${status}, Comment: ${comment}`
-                  );
-                  showToast(`Daily Cash Closing ${id} verified and closed.`);
+                onVerifyClosing={async (id, status, comment) => {
+                  const res = await suvidhaApi.requestWithMeta('OFFICER', `/collections/closing/${id}/verify`, {
+                    method: 'POST',
+                    body: JSON.stringify({
+                      status,
+                      officerComments: comment,
+                    }),
+                  });
+                  if (res.success) {
+                    showToast(`Daily Cash Closing ${id} verified and closed.`);
+                    await refreshData();
+                  } else {
+                    showToast(res.error?.message || 'Failed to verify closing');
+                  }
                 }}
                 onSelectReceipt={setSelectedReceiptModal}
                 onOpenPublicVerify={() => setIsPublicVerifyOpen(true)}
@@ -868,38 +851,44 @@ export default function App() {
                 users={users}
                 wards={wards}
                 zones={zones}
-                onToggleUserStatus={(id) => {
-                  setUsers((prev) =>
-                    prev.map((u) =>
-                      u.id === id
-                        ? {
-                            ...u,
-                            status: u.status === 'ACTIVE' ? 'DISABLED' : 'ACTIVE',
-                          }
-                        : u
-                    )
-                  );
-                  appendAuditLog(
-                    'ADMINDISABLEDUSER',
-                    'USER_MANAGEMENT',
-                    'USER',
-                    id,
-                    'Toggled Account Status',
-                    'Updated User Status'
-                  );
-                  showToast(`User ${id} account status updated.`);
+                onToggleUserStatus={async (id) => {
+                  const target = users.find((u) => u.id === id);
+                  if (!target) return;
+                  const newStatus = target.status === 'ACTIVE' ? 'DISABLED' : 'ACTIVE';
+                  const res = await suvidhaApi.requestWithMeta('ADMIN', `/users/${id}/status`, {
+                    method: 'PATCH',
+                    body: JSON.stringify({
+                      status: newStatus,
+                      reason: `Status toggled to ${newStatus}`,
+                    }),
+                  });
+                  if (res.success) {
+                    showToast(`User ${id} status updated to ${newStatus}.`);
+                    await refreshData();
+                  } else {
+                    showToast(res.error?.message || 'Failed to update user status');
+                  }
                 }}
-                onCreateUser={(newUser) => {
-                  setUsers((prev) => [newUser, ...prev]);
-                  appendAuditLog(
-                    'ADMIN_CREATED_USER',
-                    'USER_MANAGEMENT',
-                    'USER',
-                    newUser.id,
-                    'None',
-                    `Created ${newUser.fullName} (${newUser.role}) in ${newUser.assignedWard}`
-                  );
-                  showToast(`User ${newUser.fullName} created.`);
+                onCreateUser={async (newUser) => {
+                  const res = await suvidhaApi.requestWithMeta('ADMIN', '/users', {
+                    method: 'POST',
+                    body: JSON.stringify({
+                      fullName: newUser.fullName,
+                      loginIdentifier: newUser.loginIdentifier,
+                      mobile: newUser.mobile,
+                      email: newUser.email,
+                      role: newUser.role,
+                      assignedWard: newUser.assignedWard,
+                      assignedZone: newUser.assignedZone,
+                      password: 'Suvidha@Staff2026',
+                    }),
+                  });
+                  if (res.success) {
+                    showToast(`User ${newUser.fullName} created successfully.`);
+                    await refreshData();
+                  } else {
+                    showToast(res.error?.message || 'Failed to create user');
+                  }
                 }}
               />
             )}
@@ -908,21 +897,26 @@ export default function App() {
               <CategoriesAndRatesView
                 categories={categories}
                 rates={rates}
-                onPublishRate={(newRate) => {
-                  setRates((prev) => [newRate, ...prev]);
-                  appendAuditLog(
-                    'ADMINCHANGEDRATE',
-                    'RATE_MASTER',
-                    'RATE',
-                    newRate.id,
-                    'Existing historical dues preserved',
-                    `Published ${newRate.id}: ${formatInr(
-                      newRate.amountInr
-                    )}/mo effective ${newRate.effectiveFrom}`
-                  );
-                  showToast(
-                    `New Rate Master ${newRate.id} published without altering historical dues.`
-                  );
+                onPublishRate={async (newRate) => {
+                  const res = await suvidhaApi.requestWithMeta('ADMIN', '/rates', {
+                    method: 'POST',
+                    body: JSON.stringify({
+                      categoryId: newRate.categoryId,
+                      feeType: newRate.feeType,
+                      vehicleType: newRate.vehicleType,
+                      frequency: newRate.frequency,
+                      amountInr: newRate.amountInr,
+                      effectiveFrom: newRate.effectiveFrom,
+                      effectiveTo: newRate.effectiveTo,
+                      wardScope: newRate.wardScope,
+                    }),
+                  });
+                  if (res.success) {
+                    showToast(`New Rate Master published without altering historical dues.`);
+                    await refreshData();
+                  } else {
+                    showToast(res.error?.message || 'Failed to publish rate master');
+                  }
                 }}
               />
             )}
@@ -947,34 +941,33 @@ export default function App() {
                   );
                   showToast(`Notification ${id} re-dispatched and delivered.`);
                 }}
-                onRetryGovVerify={(entityId) => {
-                  setEntities((prev) =>
-                    prev.map((e) =>
-                      e.id === entityId
-                        ? {
-                            ...e,
-                            govVerificationStatus: 'VERIFIED',
-                            govVerificationRef: `VAHAN-RETRY-OK-${Date.now()
-                              .toString()
-                              .slice(-4)}`,
-                          }
-                        : e
-                    )
-                  );
-                  showToast(`Vahan API verification succeeded for ${entityId}.`);
+                onRetryGovVerify={async (entityId) => {
+                  const ent = entities.find((e) => e.id === entityId);
+                  if (!ent) return;
+                  const res = await suvidhaApi.requestWithMeta('OFFICER', '/verifications/vehicles', {
+                    method: 'POST',
+                    body: JSON.stringify({
+                      entityId: ent.id,
+                      registrationNumber: ent.registrationNumber,
+                    }),
+                  });
+                  if (res.success) {
+                    showToast(`Vahan API verification succeeded for ${ent.registrationNumber}.`);
+                    await refreshData();
+                  } else {
+                    showToast(res.error?.message || 'Government verification retry failed');
+                  }
                 }}
-                onCommitLegacyImport={() => {
-                  appendAuditLog(
-                    'LEGACY_CSV_STAGING_COMMITTED',
-                    'DATA_MIGRATION',
-                    'IMPORT_BATCH',
-                    'IMP-2026-1010',
-                    'Staging Preview (142 valid, 2 blocked)',
-                    'Committed 142 validated legacy records; 2 duplicate/invalid rows rejected'
-                  );
-                  showToast(
-                    '142 validated legacy records imported and reconciled.'
-                  );
+                onCommitLegacyImport={async () => {
+                  const res = await suvidhaApi.requestWithMeta('ADMIN', '/imports/IMP-2026-1010/commit', {
+                    method: 'POST',
+                  });
+                  if (res.success) {
+                    showToast('142 validated legacy records imported and reconciled.');
+                    await refreshData();
+                  } else {
+                    showToast(res.error?.message || 'Failed to commit legacy import batch');
+                  }
                 }}
               />
             )}
@@ -992,39 +985,23 @@ export default function App() {
             receipts={receipts}
             closings={closings}
             onRecordCollection={handleRecordCollection}
-            onSubmitDailyClosing={(actualCash, note) => {
-              const newCls: DailyClosingRecord = {
-                id: `CLS-2026-1010-AG104-NEW`,
-                agentId: 'AG-104',
-                agentName: 'Suresh Kumar Sharma',
-                wardName: 'Ward 12 — Atta Market & Sector 18',
-                date: '10/10/2026',
-                expectedCash: 14250,
-                actualCashCount: actualCash,
-                cashVariance: actualCash - 14250,
-                verifiedDigitalTotal: 8400,
-                pendingManualUpiCount: 2,
-                pendingManualUpiTotal: 750,
-                receiptsCount: 39,
-                cancelledCount: 0,
-                status: 'SUBMITTED',
-                submittedAt: '10/10/2026 11:55',
-                discrepancyNote: note,
-              };
-              setClosings((prev) => [newCls, ...prev]);
-              appendAuditLog(
-                'AGENT_SUBMITTED_DAILY_CLOSING',
-                'CASH_CLOSING',
-                'CLOSING',
-                newCls.id,
-                'Status: OPEN',
-                `Submitted Physical Cash: ${formatInr(
-                  actualCash
-                )}, Variance: ${formatInr(actualCash - 14250)}`
-              );
-              showToast(
-                'Daily Cash Closing submitted to Revenue Officer queue.'
-              );
+            onSubmitDailyClosing={async (actualCash, note) => {
+              const createRes = await suvidhaApi.requestWithMeta<DailyClosingRecord>('AGENT', '/collections/closing', {
+                method: 'POST',
+                body: JSON.stringify({
+                  actualCashCount: actualCash,
+                  discrepancyNote: note,
+                }),
+              });
+              if (createRes.success && createRes.data) {
+                await suvidhaApi.requestWithMeta('AGENT', `/collections/closing/${createRes.data.id}/submit`, {
+                  method: 'POST',
+                });
+                showToast('Daily Cash Closing submitted to Revenue Officer queue.');
+                await refreshData();
+              } else {
+                showToast(createRes.error?.message || 'Failed to submit daily cash closing');
+              }
             }}
             onSelectReceipt={setSelectedReceiptModal}
             onNavigateNewReg={() => {

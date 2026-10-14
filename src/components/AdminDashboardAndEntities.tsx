@@ -59,16 +59,32 @@ export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({
   const [categoryFilter, setCategoryFilter] = useState('ALL');
   const [agentFilter, setAgentFilter] = useState('ALL');
 
-  const cashTotal = 61350;
-  const verifiedDigitalTotal = 73350;
+  // Dynamically calculate collections and status metrics from live database collections
+  const cashPayments = payments.filter(
+    (p) => p.method === 'CASH' && (p.settlementStatus === 'SETTLED' || p.processingStatus === 'RECEIPT_GENERATED')
+  );
+  const cashTotal = cashPayments.reduce((acc, p) => acc + p.amountInr, 0);
+
+  const verifiedDigitalPayments = payments.filter(
+    (p) =>
+      (p.method === 'PAYMENT_GATEWAY' ||
+        (p.method === 'UPI_REFERENCE' && p.settlementStatus === 'SETTLED') ||
+        p.processingStatus === 'RECEIPT_GENERATED') &&
+      p.method !== 'CASH' &&
+      p.settlementStatus !== 'REVERSED'
+  );
+  const verifiedDigitalTotal = verifiedDigitalPayments.reduce((acc, p) => acc + p.amountInr, 0);
+
   const todayTotalCollection = cashTotal + verifiedDigitalTotal;
-  const totalOutstanding = entities.reduce((acc, e) => acc + e.outstandingAmount, 0) + 2234000;
+  const totalOutstanding = entities.reduce((acc, e) => acc + (e.outstandingAmount || 0), 0);
   const pendingRegistrations = entities.filter(
     (e) => e.registrationStatus === 'SUBMITTED' || e.registrationStatus === 'UNDER_REVIEW'
   ).length;
-  const pendingManualUpi = payments.filter(
+  const pendingManualUpiPayments = payments.filter(
     (p) => p.settlementStatus === 'UNVERIFIED_MANUAL_REF'
-  ).length;
+  );
+  const pendingManualUpi = pendingManualUpiPayments.length;
+  const pendingManualUpiTotal = pendingManualUpiPayments.reduce((acc, p) => acc + p.amountInr, 0);
   const openDisputes = disputes.filter((d) => d.status === 'OPEN' || d.status === 'UNDER_REVIEW').length;
   const pendingClosings = closings.filter((c) => c.status === 'SUBMITTED').length;
   const reconExceptions = reconciliations.filter((r) => r.status !== 'MATCHED').length;
@@ -84,27 +100,27 @@ export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({
     {
       label: "Today's Cash Collection",
       value: formatInr(cashTotal),
-      sub: '82 field receipts across 4 wards',
+      sub: `${cashPayments.length} verified field receipts`,
       targetModule: 'cash_closing',
       tone: 'text-slate-900',
     },
     {
       label: "Today's Verified Digital",
       value: formatInr(verifiedDigitalTotal),
-      sub: 'Webhook & Bank UTR Verified',
+      sub: `${verifiedDigitalPayments.length} digital webhook & bank verified`,
       targetModule: 'payments_recon',
       tone: 'text-emerald-700',
     },
     {
       label: 'Total Outstanding Dues',
       value: formatInr(totalOutstanding),
-      sub: 'Historical + Current Period Ledger',
+      sub: 'Current Period Ledger Assessment',
       targetModule: 'dues',
       tone: 'text-slate-900',
     },
     {
       label: 'Registered Entities',
-      value: (4785 + entities.length).toLocaleString('en-IN'),
+      value: entities.length.toLocaleString('en-IN'),
       sub: 'Vehicles, Autos, E-Rickshaws & Vendors',
       targetModule: 'entities',
       tone: 'text-slate-900',
@@ -125,7 +141,7 @@ export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({
     },
     {
       label: 'Pending Manual UPI Ref',
-      value: `${pendingManualUpi} (${formatInr(1050)})`,
+      value: `${pendingManualUpi} (${formatInr(pendingManualUpiTotal)})`,
       sub: 'Unverified UTRs — Not counted as PAID',
       targetModule: 'payments_recon',
       tone: 'text-amber-700',
@@ -140,7 +156,7 @@ export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({
     {
       label: 'Pending Cash Closings',
       value: String(pendingClosings),
-      sub: '1 closing has -₹500 shortage variance',
+      sub: `${pendingClosings} awaiting officer sign-off`,
       targetModule: 'cash_closing',
       tone: 'text-amber-700',
     },

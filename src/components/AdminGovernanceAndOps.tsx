@@ -89,6 +89,7 @@ export const UsersAgentsWardsView: React.FC<UsersAgentsWardsViewProps> = ({
           <p className="text-slate-500 mt-0.5">
             Role-based jurisdiction assignment, duplicate-user prevention, and collection variance oversight. (Note: Attendance & live GPS tracking are explicitly labeled as Future Scope per Section 8).
           </p>
+          {/* TODO [Municipal Hardware Attendance & Live GPS]: Intentionally deferred per Phase 8 architectural roadmap (Section 8). Implement real-time GPS tracking coordinates and biometric field terminal synchronization when municipal IoT devices and vehicle stand sensors are provisioned. */}
         </div>
         <div className="flex flex-wrap gap-1.5 p-1 bg-slate-100 rounded-lg">
           {[

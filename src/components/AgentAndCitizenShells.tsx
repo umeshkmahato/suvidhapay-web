@@ -83,8 +83,16 @@ export const FieldAgentWorkspace: React.FC<FieldAgentWorkspaceProps> = ({
     useState<ReceiptRecord | null>(null);
 
   // Daily Closing State (Section 26)
-  const expectedCashToday = 14250;
-  const [actualCashCount, setActualCashCount] = useState<number>(14250);
+  // Dynamically compute expected cash from agent AG-104 cash collections
+  const agentCashPayments = payments.filter(
+    (p) =>
+      p.method === 'CASH' &&
+      (p.collectedBy.includes('AG-104') || p.collectedBy.includes('Suresh')) &&
+      p.settlementStatus !== 'REVERSED'
+  );
+  const expectedCashToday =
+    agentCashPayments.reduce((acc, p) => acc + p.amountInr, 0) || 500;
+  const [actualCashCount, setActualCashCount] = useState<number>(expectedCashToday);
   const [closingNote, setClosingNote] = useState(
     'All physical currency notes tallied with Ward 12 collection pouch.'
   );
@@ -719,9 +727,17 @@ export const CitizenPortalWorkspace: React.FC<CitizenPortalWorkspaceProps> = ({
   onSelectReceipt,
 }) => {
   // Citizen only sees their own linked entities (Section 37 & 53 Ownership Rule)
-  const citizenEntities = entities.slice(0, 2);
+  // Ramesh Chandra Yadav (+91 98114 52310) owns ENT-1001 & ENT-1002
+  const citizenEntities = entities.filter(
+    (e) =>
+      e.mobile === '9811452310' ||
+      e.id === 'ENT-1001' ||
+      e.id === 'ENT-1002'
+  );
+  const activeCitizenEntities =
+    citizenEntities.length > 0 ? citizenEntities : entities.slice(0, 2);
   const [selectedEntity, setSelectedEntity] = useState<MunicipalEntity>(
-    citizenEntities[0]
+    activeCitizenEntities[0] || entities[0]
   );
   const [paymentFlowState, setPaymentFlowState] = useState<
     | 'IDLE'

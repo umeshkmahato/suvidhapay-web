@@ -26,6 +26,7 @@ import {
   UserRole,
 } from '../types/suvidha';
 import { formatInr, TRACEABILITY_MATRIX } from '../data/mockSuvidhaData';
+import { suvidhaApi } from '../services/apiClient';
 
 interface ReceiptDetailModalProps {
   receipt: ReceiptRecord | null;
@@ -198,14 +199,43 @@ export const PublicVerificationModal: React.FC<PublicVerificationModalProps> = (
   receipts,
 }) => {
   const [query, setQuery] = useState('SUP/2026/000012345');
+  const [serverVerification, setServerVerification] = useState<any>(null);
+  const [, setIsVerifying] = useState(false);
+
+  React.useEffect(() => {
+    let mounted = true;
+    if (!query.trim()) {
+      setServerVerification(null);
+      return;
+    }
+    setIsVerifying(true);
+    const timer = setTimeout(async () => {
+      const res = await suvidhaApi.verifyReceiptPublic(query.trim());
+      if (mounted) {
+        setServerVerification(res.success && res.data ? res.data : null);
+        setIsVerifying(false);
+      }
+    }, 200);
+    return () => {
+      mounted = false;
+      clearTimeout(timer);
+    };
+  }, [query]);
 
   if (!isOpen) return null;
 
-  const matched = receipts.find(
-    (r) =>
-      r.receiptNumber.toLowerCase() === query.trim().toLowerCase() ||
-      r.verificationCode.toLowerCase() === query.trim().toLowerCase()
-  );
+  const matched = serverVerification
+    ? {
+        receiptNumber: serverVerification.receiptNumber,
+        dateTime: serverVerification.dateTime,
+        currentPayment: serverVerification.amountInr,
+        status: serverVerification.status,
+      }
+    : receipts.find(
+        (r) =>
+          r.receiptNumber.toLowerCase() === query.trim().toLowerCase() ||
+          r.verificationCode.toLowerCase() === query.trim().toLowerCase()
+      );
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4">

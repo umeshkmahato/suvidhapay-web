@@ -1,5 +1,17 @@
 import { UserRole } from '../types/suvidha';
 
+export interface ApiErrorPayload {
+  code: string;
+  message: string;
+  details?: unknown;
+}
+
+export interface ApiResponse<T> {
+  success: boolean;
+  data?: T;
+  error?: ApiErrorPayload;
+}
+
 const DEMO_CREDENTIALS: Record<UserRole, { loginIdentifier: string; password: string }> = {
   ADMIN: { loginIdentifier: 'admin.kulkarni', password: 'Suvidha@Admin2026' },
   OFFICER: { loginIdentifier: 'ro.rajeshwari', password: 'Suvidha@Officer2026' },
@@ -9,6 +21,14 @@ const DEMO_CREDENTIALS: Record<UserRole, { loginIdentifier: string; password: st
 
 class SuvidhaBackendClient {
   private tokensByRole: Partial<Record<UserRole, string>> = {};
+
+  public clearTokens(): void {
+    this.tokensByRole = {};
+  }
+
+  public setToken(role: UserRole, token: string): void {
+    this.tokensByRole[role] = token;
+  }
 
   public async getAccessToken(role: UserRole): Promise<string | null> {
     if (this.tokensByRole[role]) {
@@ -33,11 +53,11 @@ class SuvidhaBackendClient {
     }
   }
 
-  public async request<T>(
+  public async requestWithMeta<T>(
     role: UserRole,
     path: string,
     options: RequestInit = {}
-  ): Promise<T | null> {
+  ): Promise<ApiResponse<T>> {
     try {
       const token = await this.getAccessToken(role);
       const headers: Record<string, string> = {
@@ -53,11 +73,60 @@ class SuvidhaBackendClient {
       });
       const json = await res.json();
       if (json?.success) {
-        return json.data as T;
+        return { success: true, data: json.data as T };
       }
-      return null;
-    } catch {
-      return null;
+      return {
+        success: false,
+        error: json?.error || {
+          code: 'HTTP_ERROR',
+          message: json?.message || `Request failed with status ${res.status}`,
+        },
+      };
+    } catch (err) {
+      return {
+        success: false,
+        error: {
+          code: 'NETWORK_ERROR',
+          message: err instanceof Error ? err.message : 'Network request failed',
+        },
+      };
+    }
+  }
+
+  public async request<T>(
+    role: UserRole,
+    path: string,
+    options: RequestInit = {}
+  ): Promise<T | null> {
+    const resp = await this.requestWithMeta<T>(role, path, options);
+    if (resp.success && resp.data !== undefined) {
+      return resp.data;
+    }
+    return null;
+  }
+
+  public async verifyReceiptPublic(code: string): Promise<ApiResponse<Record<string, unknown>>> {
+    try {
+      const res = await fetch(`/api/v1/receipts/verify/${encodeURIComponent(code)}`);
+      const json = await res.json();
+      if (json?.success) {
+        return { success: true, data: json.data };
+      }
+      return {
+        success: false,
+        error: json?.error || {
+          code: 'NOT_FOUND',
+          message: 'Receipt verification failed',
+        },
+      };
+    } catch (err) {
+      return {
+        success: false,
+        error: {
+          code: 'NETWORK_ERROR',
+          message: err instanceof Error ? err.message : 'Network request failed',
+        },
+      };
     }
   }
 }

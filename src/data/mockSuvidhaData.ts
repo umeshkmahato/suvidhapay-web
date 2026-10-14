@@ -29,6 +29,15 @@ export const normalizeVehicleNumber = (input: string): string => {
   return input.replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
 };
 
+export class Money {
+  static inrToPaise(inr: number): number {
+    return Math.round(inr * 100);
+  }
+  static paiseToInr(paise: number): number {
+    return Number((paise / 100).toFixed(2));
+  }
+}
+
 export const INITIAL_ZONES: Zone[] = [
   { id: 'ZN-01', code: 'Z-NORTH', name: 'Zone 1 — North Civic Sector', wardsCount: 4, totalEntities: 1420, totalOutstanding: 642500, status: 'ACTIVE' },
   { id: 'ZN-02', code: 'Z-CENTRAL', name: 'Zone 2 — Central Commercial Hub', wardsCount: 5, totalEntities: 2380, totalOutstanding: 1184000, status: 'ACTIVE' },

@@ -3,14 +3,14 @@ import express from 'express';
 import path from 'path';
 import { createServer as createViteServer } from 'vite';
 import { loadConfig } from './src/server/infra/core';
-import { JsonFileDataStore } from './src/server/repositories/jsonDataStore';
+import { LokiDataStore } from './src/server/repositories/lokiDataStore';
 import { createSuvidhaApiApp } from './src/server/app';
 
 dotenv.config();
 
 async function startServer() {
   const config = loadConfig();
-  const store = new JsonFileDataStore(config.dataDir);
+  const store = new LokiDataStore(config.dataDir);
   await store.seedIfEmpty();
 
   const app = createSuvidhaApiApp(store);
@@ -35,7 +35,12 @@ async function startServer() {
     );
   });
 
-  const shutdown = () => {
+  const shutdown = async () => {
+    try {
+      await store.close();
+    } catch (e) {
+      console.error('[SuvidhaPay] Error closing store:', e);
+    }
     server.close(() => {
       process.exit(0);
     });

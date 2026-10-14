@@ -1,25 +1,31 @@
 import dotenv from 'dotenv';
 import { loadConfig } from '../infra/core';
 import { JsonFileDataStore } from '../repositories/jsonDataStore';
+import { LokiDataStore } from '../repositories/lokiDataStore';
 
 dotenv.config();
 
 async function runCli() {
   const mode = process.argv[2] || 'seed';
   const config = loadConfig();
-  const store = new JsonFileDataStore(config.dataDir);
+  const jsonStore = new JsonFileDataStore(config.dataDir);
+  const lokiStore = new LokiDataStore(config.dataDir);
 
   if (mode === 'reset') {
-    await store.resetToDeterministicSeed();
+    await jsonStore.resetToDeterministicSeed();
+    await lokiStore.resetToDeterministicSeed();
     console.log(
-      `[SuvidhaPay Seed] Data directory ${store.getDataDir()} reset to deterministic seed state.`
+      `[SuvidhaPay Seed] Data stores (JSON & LokiJS) in ${config.dataDir} reset to deterministic seed state.`
     );
   } else {
-    await store.seedIfEmpty();
+    await jsonStore.seedIfEmpty();
+    await lokiStore.seedIfEmpty();
     console.log(
-      `[SuvidhaPay Seed] Data directory ${store.getDataDir()} verified/seeded without overwriting existing records.`
+      `[SuvidhaPay Seed] Data stores (JSON & LokiJS) in ${config.dataDir} verified/seeded without overwriting existing records.`
     );
   }
+  await lokiStore.close();
+  process.exit(0);
 }
 
 runCli().catch((err) => {
