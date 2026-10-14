@@ -3,15 +3,16 @@ import express from 'express';
 import path from 'path';
 import { createServer as createViteServer } from 'vite';
 import { loadConfig } from './src/server/infra/core';
-import { LokiDataStore } from './src/server/repositories/lokiDataStore';
+import { initDatabase, closeDatabase } from './src/server/db/database';
 import { createSuvidhaApiApp } from './src/server/app';
 
 dotenv.config();
 
 async function startServer() {
   const config = loadConfig();
-  const store = new LokiDataStore(config.dataDir);
-  await store.seedIfEmpty();
+
+  // Centralized Database Initialization — ensures collections & indexes are ready before listening
+  const store = await initDatabase({ dataDir: config.dataDir });
 
   const app = createSuvidhaApiApp(store);
 
@@ -37,14 +38,15 @@ async function startServer() {
 
   const shutdown = async () => {
     try {
-      await store.close();
+      await closeDatabase();
     } catch (e) {
-      console.error('[SuvidhaPay] Error closing store:', e);
+      console.error('[SuvidhaPay] Error during database shutdown:', e);
     }
     server.close(() => {
       process.exit(0);
     });
   };
+
   process.on('SIGTERM', shutdown);
   process.on('SIGINT', shutdown);
 }

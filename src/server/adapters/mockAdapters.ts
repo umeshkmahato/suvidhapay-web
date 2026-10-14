@@ -134,7 +134,7 @@ export interface IGovVerificationAdapter {
   }): Promise<GovVerificationLookupResult>;
 }
 
-// TODO [Live Parivahan Vahan & PM SVANidhi APIs]: Intentionally deferred until MoRTH Parivahan NIC API credentials and secure VPN IP whitelisting are authorized for the municipal corporation. Replace MockGovVerificationAdapter with direct NIC SOAP/REST calls.
+// TODO [NIC Parivahan VAHAN 4.0 & PM-SVANidhi Integration]: Intentionally deferred until official state ULB API credentials and digital certificates are issued. Replace MockGovVerificationAdapter with direct NIC REST gateway client.
 export class MockGovVerificationAdapter implements IGovVerificationAdapter {
   public async verifyVehicleOrVendor(params: {
     registrationNumber: string;

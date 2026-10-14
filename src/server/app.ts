@@ -120,11 +120,16 @@ export function createSuvidhaApiApp(store: IDataStore): express.Express {
   // ============================================================================
   const handleHealth = asyncHandler(async (_req, res) => {
     const db = await store.readAll();
+    const persistenceMode =
+      typeof (store as any).getPersistenceMode === 'function'
+        ? (store as any).getPersistenceMode()
+        : 'disk';
     sendSuccess(res, {
       status: 'UP',
       service: 'suvidhapay-backend',
       version: '1.0.0',
-      storageMode: 'JSON_DEVELOPMENT_PERSISTENCE',
+      database: 'LOKIJS',
+      persistenceMode: persistenceMode.toUpperCase(),
       municipality: db.settings.municipalityName,
       counts: {
         users: db.users.length,
@@ -132,6 +137,9 @@ export function createSuvidhaApiApp(store: IDataStore): express.Express {
         dues: db.dues.length,
         payments: db.payments.length,
         receipts: db.receipts.length,
+        closings: db.closings.length,
+        wards: db.wards.length,
+        zones: db.zones.length,
       },
     });
   });

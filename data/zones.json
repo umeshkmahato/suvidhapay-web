@@ -1,0 +1,29 @@
+[
+  {
+    "id": "ZN-01",
+    "code": "Z-NORTH",
+    "name": "Zone 1 — North Civic Sector",
+    "wardsCount": 4,
+    "totalEntities": 1420,
+    "totalOutstanding": 642500,
+    "status": "ACTIVE"
+  },
+  {
+    "id": "ZN-02",
+    "code": "Z-CENTRAL",
+    "name": "Zone 2 — Central Commercial Hub",
+    "wardsCount": 5,
+    "totalEntities": 2380,
+    "totalOutstanding": 1184000,
+    "status": "ACTIVE"
+  },
+  {
+    "id": "ZN-03",
+    "code": "Z-SOUTH",
+    "name": "Zone 3 — South Transport & Mandi",
+    "wardsCount": 3,
+    "totalEntities": 985,
+    "totalOutstanding": 412800,
+    "status": "ACTIVE"
+  }
+]

@@ -29,7 +29,11 @@ import {
   NotificationLog,
   AuditLogEntry,
 } from '../../types/suvidha';
-import { buildDeterministicSeed } from './jsonDataStore';
+import { generateDeterministicSeed } from '../db/seedData';
+
+export interface LokiStoreOptions {
+  persistence?: 'disk' | 'memory';
+}
 
 /**
  * LokiDataStore — Database-Independent LokiJS Storage Engine (Sections 3, 4, 15)
@@ -40,14 +44,23 @@ import { buildDeterministicSeed } from './jsonDataStore';
  * Implements IDataStore so controllers and domain services can transition seamlessly
  * between JSON file storage, LokiJS, and future PostgreSQL implementations without
  * modifying any business logic or signatures.
+ *
+ * Metadata Boundary:
+ * All returned documents have `$loki` and `meta` completely stripped, ensuring zero
+ * leak of LokiJS internal document pointers or revision numbers to callers.
  */
 export class LokiDataStore implements IDataStore {
   private db: loki | null = null;
   private readonly dbFilePath: string;
   private initialized = false;
   private transactionQueue: Promise<unknown> = Promise.resolve();
+  private readonly persistenceMode: 'disk' | 'memory';
 
-  constructor(private readonly dataDir: string) {
+  constructor(
+    private readonly dataDir: string,
+    options?: LokiStoreOptions
+  ) {
+    this.persistenceMode = options?.persistence || 'disk';
     if (!fs.existsSync(this.dataDir)) {
       fs.mkdirSync(this.dataDir, { recursive: true });
     }
@@ -62,12 +75,24 @@ export class LokiDataStore implements IDataStore {
     return this.dbFilePath;
   }
 
+  public getPersistenceMode(): 'disk' | 'memory' {
+    return this.persistenceMode;
+  }
+
   /**
-   * Initializes LokiJS database instance with LokiFsAdapter.
+   * Initializes LokiJS database instance with LokiFsAdapter (or in-memory if requested).
    */
   private async initDb(): Promise<loki> {
     if (this.db && this.initialized) {
       return this.db;
+    }
+
+    if (this.persistenceMode === 'memory') {
+      const dbInstance = new loki('suvidha_memory.db');
+      this.ensureCollections(dbInstance);
+      this.db = dbInstance;
+      this.initialized = true;
+      return dbInstance;
     }
 
     const adapter = new loki.LokiFsAdapter();
@@ -144,7 +169,7 @@ export class LokiDataStore implements IDataStore {
   /**
    * Helper to strip internal Loki metadata properties ($loki, meta)
    */
-  private cleanDocument<T>(doc: T): T {
+  public cleanDocument<T>(doc: T): T {
     if (!doc || typeof doc !== 'object') return doc;
     const clone = { ...doc } as Record<string, unknown>;
     delete clone['$loki'];
@@ -164,7 +189,7 @@ export class LokiDataStore implements IDataStore {
     const settingsCol = this.db!.getCollection<SystemSettingsRecord>('settings');
     const settingsDoc = settingsCol?.data[0]
       ? this.cleanDocument<SystemSettingsRecord>(settingsCol.data[0])
-      : buildDeterministicSeed().settings;
+      : generateDeterministicSeed().settings;
 
     return {
       users: this.cleanCollection<BackendUserRecord>('users'),
@@ -263,11 +288,13 @@ export class LokiDataStore implements IDataStore {
     settingsCol.clear();
     settingsCol.insert(this.cleanDocument({ ...collections.settings }));
 
-    await this.saveDatabase();
+    if (this.persistenceMode === 'disk') {
+      await this.saveDatabase();
+    }
   }
 
-  private async saveDatabase(): Promise<void> {
-    if (!this.db) return;
+  public async saveDatabase(): Promise<void> {
+    if (!this.db || this.persistenceMode !== 'disk') return;
     return new Promise<void>((resolve, reject) => {
       this.db!.saveDatabase((err) => {
         if (err) return reject(err);
@@ -286,7 +313,7 @@ export class LokiDataStore implements IDataStore {
 
   public async resetToDeterministicSeed(): Promise<void> {
     await this.initDb();
-    const seed = buildDeterministicSeed();
+    const seed = generateDeterministicSeed();
     await this.saveAllCollections(seed);
   }
 
@@ -295,7 +322,9 @@ export class LokiDataStore implements IDataStore {
       try {
         this.db.autosaveDisable();
       } catch {}
-      await this.saveDatabase();
+      if (this.persistenceMode === 'disk') {
+        await this.saveDatabase();
+      }
     }
   }
 }

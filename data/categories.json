@@ -1,0 +1,99 @@
+[
+  {
+    "id": "CAT-AUTO",
+    "code": "AUTO_RICKSHAW",
+    "name": "Auto-Rickshaw (Three-Wheeler)",
+    "entityType": "VEHICLE",
+    "specificFields": [
+      "Vehicle Registration No.",
+      "Permit Number",
+      "CNG/LPG Kit Valid Till",
+      "Route Stand"
+    ],
+    "applicableFeeTypes": [
+      "Municipal Stand Fee",
+      "Annual Commercial Permit"
+    ],
+    "activeRateId": "RT-2026-01",
+    "activeRateAmount": 450,
+    "entitiesCount": 840,
+    "status": "ACTIVE"
+  },
+  {
+    "id": "CAT-ERICK",
+    "code": "E_RICKSHAW",
+    "name": "E-Rickshaw (Battery Operated)",
+    "entityType": "VEHICLE",
+    "specificFields": [
+      "Vehicle Registration No.",
+      "Battery Chassis Serial",
+      "Charging Zone Code"
+    ],
+    "applicableFeeTypes": [
+      "Green Transit Corridor Fee",
+      "Stand Parking Fee"
+    ],
+    "activeRateId": "RT-2026-02",
+    "activeRateAmount": 300,
+    "entitiesCount": 690,
+    "status": "ACTIVE"
+  },
+  {
+    "id": "CAT-VEH-OWN",
+    "code": "COMMERCIAL_TEMPO",
+    "name": "Commercial Goods Tempo / LCV",
+    "entityType": "VEHICLE",
+    "specificFields": [
+      "Vehicle Registration No.",
+      "Gross Vehicle Weight (GVW)",
+      "Loading Bay Pass"
+    ],
+    "applicableFeeTypes": [
+      "Mandi Loading Entry Fee",
+      "Monthly Municipal Parking"
+    ],
+    "activeRateId": "RT-2026-03",
+    "activeRateAmount": 750,
+    "entitiesCount": 312,
+    "status": "ACTIVE"
+  },
+  {
+    "id": "CAT-VEND",
+    "code": "STATIONARY_VENDOR",
+    "name": "Stationary Kiosk / Tehbazari Vendor",
+    "entityType": "VENDOR",
+    "specificFields": [
+      "Stall / Kiosk Plot No.",
+      "PM SVANidhi ID (Optional)",
+      "Vending Zone Category",
+      "Area (Sq. Ft.)"
+    ],
+    "applicableFeeTypes": [
+      "Monthly Tehbazari Fee",
+      "Sanitation & Waste User Charge"
+    ],
+    "activeRateId": "RT-2026-04",
+    "activeRateAmount": 600,
+    "entitiesCount": 745,
+    "status": "ACTIVE"
+  },
+  {
+    "id": "CAT-HAWK",
+    "code": "MOBILE_HAWKER",
+    "name": "Street Hawker / Pushcart (Rehri)",
+    "entityType": "VENDOR",
+    "specificFields": [
+      "Cart Token Number",
+      "Vending Time Slot",
+      "Commodity Type"
+    ],
+    "applicableFeeTypes": [
+      "Daily Vending Fee",
+      "Monthly Hawker License"
+    ],
+    "activeRateId": "RT-2026-05",
+    "activeRateAmount": 250,
+    "entitiesCount": 520,
+    "status": "ACTIVE"
+  }
+]

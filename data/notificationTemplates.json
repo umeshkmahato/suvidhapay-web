@@ -1,0 +1,38 @@
+[
+  {
+    "id": "TPL_SMS_RCP_HI",
+    "name": "Official Receipt Generated SMS",
+    "channel": "SMS",
+    "eventType": "RECEIPT_GENERATED",
+    "bodyTemplate": "Noida MC SuvidhaPay: Payment of INR {{amount}} received for {{regNo}}. Receipt No: {{receiptNo}}.",
+    "active": true,
+    "createdAt": "2026-01-01T00:00:00.000Z"
+  },
+  {
+    "id": "TPL_WA_RCP_PDF",
+    "name": "WhatsApp E-Receipt PDF Dispatch",
+    "channel": "WHATSAPP",
+    "eventType": "RECEIPT_PDF_DISPATCH",
+    "bodyTemplate": "Namaste {{name}}, your official Noida Municipal Corporation receipt {{receiptNo}} for INR {{amount}} is attached.",
+    "active": true,
+    "createdAt": "2026-01-01T00:00:00.000Z"
+  },
+  {
+    "id": "TPL_SMS_REG_SUB",
+    "name": "Registration Submitted Confirmation",
+    "channel": "SMS",
+    "eventType": "REGISTRATION_SUBMITTED",
+    "bodyTemplate": "SuvidhaPay: Registration for {{regNo}} submitted for Revenue Officer review.",
+    "active": true,
+    "createdAt": "2026-01-01T00:00:00.000Z"
+  },
+  {
+    "id": "TPL_SMS_WAIVER_APPR",
+    "name": "Due Waiver / Adjustment Approved Notification",
+    "channel": "SMS",
+    "eventType": "WAIVER_APPROVED",
+    "bodyTemplate": "SuvidhaPay: Waiver of INR {{amount}} approved for {{regNo}} by Revenue Officer. Reference: {{refNo}}.",
+    "active": true,
+    "createdAt": "2026-01-01T00:00:00.000Z"
+  }
+]
