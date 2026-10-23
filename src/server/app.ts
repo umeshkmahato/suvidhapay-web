@@ -120,16 +120,19 @@ export function createSuvidhaApiApp(store: IDataStore): express.Express {
   // ============================================================================
   const handleHealth = asyncHandler(async (_req, res) => {
     const db = await store.readAll();
-    const persistenceMode =
-      typeof (store as any).getPersistenceMode === 'function'
-        ? (store as any).getPersistenceMode()
-        : 'disk';
+    const isPostgres = store.constructor.name === 'PostgresDataStore';
+    const databaseType = isPostgres ? 'POSTGRESQL' : 'LOKIJS';
+    const persistenceMode = isPostgres
+      ? 'POSTGRES_VOLUME'
+      : typeof (store as any).getPersistenceMode === 'function'
+        ? (store as any).getPersistenceMode().toUpperCase()
+        : 'DISK';
     sendSuccess(res, {
       status: 'UP',
       service: 'suvidhapay-backend',
       version: '1.0.0',
-      database: 'LOKIJS',
-      persistenceMode: persistenceMode.toUpperCase(),
+      database: databaseType,
+      persistenceMode,
       municipality: db.settings.municipalityName,
       counts: {
         users: db.users.length,

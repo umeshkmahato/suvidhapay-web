@@ -2,10 +2,19 @@ import crypto from 'crypto';
 import { Request, Response, NextFunction } from 'express';
 import { UserRole } from '../../types/suvidha';
 
+export type DatabaseEngine = 'POSTGRES' | 'LOKIJS';
+
 export interface AppConfig {
   port: number;
   nodeEnv: string;
   dataDir: string;
+  databaseEngine: DatabaseEngine;
+  databaseUrl?: string;
+  pgHost: string;
+  pgPort: number;
+  pgDatabase: string;
+  pgUser: string;
+  pgPassword?: string;
   jwtAccessSecret: string;
   jwtRefreshSecret: string;
   jwtAccessExpiresSec: number;
@@ -15,10 +24,35 @@ export interface AppConfig {
 }
 
 export function loadConfig(): AppConfig {
+  const explicitEngine = (
+    process.env.DATABASE_ENGINE ||
+    process.env.DB_ENGINE ||
+    process.env.DATABASE_TYPE ||
+    ''
+  ).toUpperCase();
+  const hasPgEnv = Boolean(
+    process.env.DATABASE_URL ||
+    process.env.PGHOST ||
+    process.env.POSTGRES_HOST
+  );
+  const databaseEngine: DatabaseEngine =
+    explicitEngine === 'LOKIJS'
+      ? 'LOKIJS'
+      : explicitEngine === 'POSTGRES' || hasPgEnv
+        ? 'POSTGRES'
+        : 'POSTGRES';
+
   return {
     port: 3000,
     nodeEnv: process.env.NODE_ENV || 'development',
     dataDir: process.env.SUVIDHAPAY_DATA_DIR || './data',
+    databaseEngine,
+    databaseUrl: process.env.DATABASE_URL,
+    pgHost: process.env.PGHOST || process.env.POSTGRES_HOST || 'postgres',
+    pgPort: Number(process.env.PGPORT || process.env.POSTGRES_PORT || 5432),
+    pgDatabase: process.env.PGDATABASE || process.env.POSTGRES_DB || 'suvidhapay',
+    pgUser: process.env.PGUSER || process.env.POSTGRES_USER || 'suvidhapay',
+    pgPassword: process.env.PGPASSWORD || process.env.POSTGRES_PASSWORD || 'suvidhapay_secret_2026',
     jwtAccessSecret:
       process.env.JWT_ACCESS_SECRET ||
       'dev_suvidhapay_jwt_access_secret_change_in_prod',

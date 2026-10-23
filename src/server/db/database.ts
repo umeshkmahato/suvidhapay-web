@@ -2,19 +2,22 @@ import fs from 'fs';
 import path from 'path';
 import { IDataStore } from '../repositories/interfaces';
 import { LokiDataStore } from '../repositories/lokiDataStore';
+import { PostgresDataStore } from './postgresDataStore';
 import { seedCollectionsIfEmpty, resetDatabaseToSeed } from './seedData';
-import { loadConfig } from '../infra/core';
+import { loadConfig, DatabaseEngine } from '../infra/core';
 
-export type DatabasePersistenceMode = 'disk' | 'memory';
+export type DatabasePersistenceMode = 'disk' | 'memory' | 'postgres';
 
 export interface DatabaseConfig {
-  dataDir: string;
+  dataDir?: string;
   persistenceMode?: DatabasePersistenceMode;
+  engine?: DatabaseEngine;
+  connectionString?: string;
 }
 
 export interface DatabaseHealth {
   status: 'HEALTHY' | 'DEGRADED' | 'DOWN';
-  storageEngine: 'LOKIJS';
+  storageEngine: 'POSTGRESQL' | 'LOKIJS';
   persistenceMode: DatabasePersistenceMode;
   dbFilePath: string | null;
   initialized: boolean;
@@ -23,25 +26,22 @@ export interface DatabaseHealth {
 }
 
 /**
- * Centralized Database Initialization & Lifecycle Manager (Section 3 & Phase 2)
+ * Centralized Database Initialization & Lifecycle Manager (Phases 2 & 5)
  *
  * Responsibilities:
- * 1. Coordinates single-point database initialization, ensuring all collections and indexes
- *    are established BEFORE the HTTP server begins accepting requests.
- * 2. Manages storage persistence mode:
- *    - 'disk' (Default): Explicit local persistence via LokiFsAdapter into `data/suvidha_loki.db.json`.
- *      Changes survive server restarts, crashes, and redeploys.
- *    - 'memory': Purely in-memory storage (useful for isolated unit tests). Documented that
- *      data will disappear when the Node.js process terminates.
- * 3. Handles initialization errors, corrupted disk databases (auto-quarantine & recovery),
- *    and graceful shutdown signals (SIGINT / SIGTERM).
+ * 1. Supports PostgreSQL (Active Production Engine, Phase 5) with connection pooling,
+ *    relational schema migrations, constraints, and ACID transactions.
+ * 2. Supports LokiJS (Embedded Local/Test Engine) with disk fsync and memory modes.
+ * 3. Graceful fallback for local developer environments when Docker/PostgreSQL is offline.
  * 4. Automatic deterministic seeding if the database is unpopulated.
+ * 5. Corrupted database auto-quarantine and recovery.
  */
 export class DatabaseManager {
   private static instance: DatabaseManager | null = null;
-  private store: LokiDataStore | null = null;
+  private store: IDataStore | null = null;
   private isInitialized = false;
-  private persistenceMode: DatabasePersistenceMode = 'disk';
+  private persistenceMode: DatabasePersistenceMode = 'postgres';
+  private activeEngine: 'POSTGRESQL' | 'LOKIJS' = 'POSTGRESQL';
   private dataDir = './data';
 
   private constructor() {}
@@ -54,8 +54,8 @@ export class DatabaseManager {
   }
 
   /**
-   * Initializes the centralized database and ensures collections & seeds are ready.
-   * MUST be awaited before Express begins listening.
+   * Initializes the database (PostgreSQL primary or LokiJS fallback) and ensures
+   * migrations and seeds are ready BEFORE the HTTP server begins accepting requests.
    */
   public async initialize(customConfig?: Partial<DatabaseConfig>): Promise<IDataStore> {
     if (this.isInitialized && this.store) {
@@ -63,9 +63,47 @@ export class DatabaseManager {
     }
 
     const envConfig = loadConfig();
+    const targetEngine = customConfig?.engine || envConfig.databaseEngine;
     this.dataDir = customConfig?.dataDir || envConfig.dataDir || './data';
+
+    // 1. Attempt PostgreSQL if selected or configured
+    if (targetEngine === 'POSTGRES') {
+      try {
+        console.log('[DatabaseManager] Initializing PostgreSQL data store...');
+        const pgStore = new PostgresDataStore({
+          connectionString: customConfig?.connectionString || envConfig.databaseUrl,
+          poolConfig: {
+            host: envConfig.pgHost,
+            port: envConfig.pgPort,
+            database: envConfig.pgDatabase,
+            user: envConfig.pgUser,
+            password: envConfig.pgPassword,
+            max: 20,
+            idleTimeoutMillis: 30000,
+            connectionTimeoutMillis: 3000,
+          },
+          autoMigrate: true,
+          autoSeed: true,
+        });
+
+        await pgStore.initialize();
+        this.store = pgStore;
+        this.activeEngine = 'POSTGRESQL';
+        this.persistenceMode = 'postgres';
+        this.isInitialized = true;
+        console.log('[DatabaseManager] PostgreSQL engine initialized successfully.');
+        return this.store;
+      } catch (pgErr) {
+        console.warn(
+          `[DatabaseManager] PostgreSQL connection unavailable (${(pgErr as Error).message}). Falling back to local LokiJS engine.`
+        );
+      }
+    }
+
+    // 2. Fallback to LokiJS if PostgreSQL is offline or explicitly requested
+    this.activeEngine = 'LOKIJS';
     const envPersistence = (process.env.PERSISTENCE_MODE as DatabasePersistenceMode) || 'disk';
-    this.persistenceMode = customConfig?.persistenceMode || envPersistence;
+    this.persistenceMode = customConfig?.persistenceMode || (envPersistence === 'postgres' ? 'disk' : envPersistence);
 
     if (!fs.existsSync(this.dataDir)) {
       fs.mkdirSync(this.dataDir, { recursive: true });
@@ -80,7 +118,7 @@ export class DatabaseManager {
         if (rawContent && rawContent.length > 0) {
           JSON.parse(rawContent);
         }
-      } catch (err) {
+      } catch {
         const quarantinePath = `${targetDbPath}.corrupted.${Date.now()}`;
         console.warn(
           `[DatabaseManager] Corrupted database JSON detected at ${targetDbPath}. Quarantining to ${quarantinePath} and creating fresh database.`
@@ -91,23 +129,17 @@ export class DatabaseManager {
       }
     }
 
-    this.store = new LokiDataStore(this.dataDir, {
-      persistence: this.persistenceMode,
+    const lokiStore = new LokiDataStore(this.dataDir, {
+      persistence: this.persistenceMode === 'memory' ? 'memory' : 'disk',
     });
 
     try {
-      // Ensure seed data is populated if empty
-      await seedCollectionsIfEmpty(this.store);
+      await seedCollectionsIfEmpty(lokiStore);
+      this.store = lokiStore;
       this.isInitialized = true;
-
       console.log(
         `[DatabaseManager] LokiJS initialized successfully in [${this.persistenceMode.toUpperCase()}] mode at "${this.dataDir}".`
       );
-      if (this.persistenceMode === 'memory') {
-        console.warn(
-          '[DatabaseManager] NOTE: Running in memory-only mode. All data changes will disappear on process restart.'
-        );
-      }
     } catch (err) {
       console.error('[DatabaseManager] Fatal database initialization error:', err);
       throw err;
@@ -116,7 +148,7 @@ export class DatabaseManager {
     return this.store;
   }
 
-  public getStore(): LokiDataStore {
+  public getStore(): IDataStore {
     if (!this.store || !this.isInitialized) {
       throw new Error(
         '[DatabaseManager] Database has not been initialized. Call initialize() first.'
@@ -125,11 +157,15 @@ export class DatabaseManager {
     return this.store;
   }
 
+  public getActiveEngine(): 'POSTGRESQL' | 'LOKIJS' {
+    return this.activeEngine;
+  }
+
   public async getHealth(): Promise<DatabaseHealth> {
     if (!this.store || !this.isInitialized) {
       return {
         status: 'DOWN',
-        storageEngine: 'LOKIJS',
+        storageEngine: this.activeEngine,
         persistenceMode: this.persistenceMode,
         dbFilePath: null,
         initialized: false,
@@ -146,9 +182,9 @@ export class DatabaseManager {
       }
       return {
         status: 'HEALTHY',
-        storageEngine: 'LOKIJS',
+        storageEngine: this.activeEngine,
         persistenceMode: this.persistenceMode,
-        dbFilePath: this.persistenceMode === 'disk' ? this.store.getDbFilePath() : null,
+        dbFilePath: this.store.getDbFilePath ? this.store.getDbFilePath() : null,
         initialized: true,
         documentCounts: counts,
         timestamp: new Date().toISOString(),
@@ -156,9 +192,9 @@ export class DatabaseManager {
     } catch {
       return {
         status: 'DEGRADED',
-        storageEngine: 'LOKIJS',
+        storageEngine: this.activeEngine,
         persistenceMode: this.persistenceMode,
-        dbFilePath: this.store.getDbFilePath(),
+        dbFilePath: this.store.getDbFilePath ? this.store.getDbFilePath() : null,
         initialized: true,
         documentCounts: {},
         timestamp: new Date().toISOString(),
@@ -170,11 +206,11 @@ export class DatabaseManager {
     if (!this.store) {
       await this.initialize();
     }
-    await resetDatabaseToSeed(this.store!, force);
+    await this.store!.resetToDeterministicSeed();
   }
 
   public async close(): Promise<void> {
-    if (this.store) {
+    if (this.store && typeof this.store.close === 'function') {
       await this.store.close();
       this.isInitialized = false;
       this.store = null;
@@ -183,14 +219,12 @@ export class DatabaseManager {
   }
 }
 
-export async function initDatabase(customConfig?: Partial<DatabaseConfig>): Promise<IDataStore> {
-  return DatabaseManager.getInstance().initialize(customConfig);
-}
-
-export function getDatabase(): LokiDataStore {
-  return DatabaseManager.getInstance().getStore();
+export async function initDatabase(config?: Partial<DatabaseConfig>): Promise<IDataStore> {
+  const manager = DatabaseManager.getInstance();
+  return manager.initialize(config);
 }
 
 export async function closeDatabase(): Promise<void> {
-  return DatabaseManager.getInstance().close();
+  const manager = DatabaseManager.getInstance();
+  return manager.close();
 }
