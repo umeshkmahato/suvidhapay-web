@@ -354,6 +354,28 @@ npm test
 6. **Manual UPI UTR Quarantine**: Ensuring unverified UPI transactions remain pending without receipts until explicit Officer approval, and privacy masking of citizen PII on the public verification endpoint.
 7. **End-of-Day Closing & Reconciliations**: Cash closing state machine (`OPEN` → `SUBMITTED` → `OFFICER_VERIFIED` → `CLOSED`), variance auditing, payment reversals, and staged legacy register batch commit.
 
+### Running and Testing
+# 1. Start the application in development mode (Express server + Vite on port 3000)
+npm run dev
+
+# 2. Run deterministic database seed (idempotent, skips duplicates if already seeded)
+npm run seed
+
+# 3. Reset database to fresh seed (development/testing only, blocked in production)
+npm run reset
+
+# 4. Run TypeScript typecheck / lint
+npm run lint
+
+# 5. Run full automated integration test suite
+npm test
+
+# 6. Build production frontend assets
+npm run build
+
+# 7. Start production server
+npm start
+
 ---
 
 ## 🗃️ Production Deployment & Database Migration

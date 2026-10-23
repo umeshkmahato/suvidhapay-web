@@ -28,6 +28,7 @@ import {
   MunicipalEntity,
 } from '../types/suvidha';
 import { formatInr } from '../data/mockSuvidhaData';
+import { suvidhaApi } from '../services/apiClient';
 
 interface UsersAgentsWardsViewProps {
   users: SystemUser[];
@@ -657,6 +658,50 @@ export const OperationsAndGovernanceHub: React.FC<OperationsAndGovernanceHubProp
     'STAGING_PREVIEW'
   );
 
+  const handleExportReport = async (reportTitle: string, format: 'CSV' | 'EXCEL') => {
+    const typeMap: Record<string, string> = {
+      '1. Collection Reports (Sec 42)': 'COLLECTIONS',
+      '2. Outstanding & Aging Reports (Sec 43)': 'OUTSTANDING',
+      '3. Agent, Ward & Category Reports (Sec 44)': 'AGENTS',
+      '4. Cash & Gateway Reconciliation': 'RECONCILIATION',
+      '5. Registration & Vahan Verification': 'VERIFICATIONS',
+      '6. Dispute, Waiver & Anomaly Audit': 'AUDIT',
+    };
+    const key = typeMap[reportTitle] || 'COLLECTIONS';
+    const res = await suvidhaApi.requestWithMeta<{ fileName: string; csvContent: string }>('ADMIN', `/reports/export?type=${key}`);
+    if (res.success && res.data) {
+      const mime = format === 'CSV' ? 'text/csv;charset=utf-8;' : 'application/vnd.ms-excel;charset=utf-8;';
+      const ext = format === 'CSV' ? '.csv' : '.xls';
+      const fileName = (res.data.fileName || `SuvidhaPay_${key}.csv`).replace('.csv', ext);
+      const blob = new Blob([res.data.csvContent], { type: mime });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', fileName);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+    }
+  };
+
+  const handleDownloadErrorReport = () => {
+    const errorCsv = [
+      'CSV Row,Identifier,PayerName,Mobile,OpeningArrears,ValidationResult',
+      'Row #048,UP-16-AB-1234,Ramesh Yadav,9811452310,1150,BLOCKED: Duplicate Normalized Vehicle Key UP16AB1234',
+      'Row #092,VND-NMC-2026-0112,Munna Bhai,98114,600,BLOCKED: Invalid 10-Digit Indian Mobile Format',
+    ].join('\n');
+    const blob = new Blob([errorCsv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', 'Ward12_Legacy_Import_Errors.csv');
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
   return (
     <div className="space-y-5 text-xs">
       <div className="bg-white border border-slate-200 rounded-xl p-4 flex flex-wrap items-center justify-between gap-4">
@@ -737,10 +782,16 @@ export const OperationsAndGovernanceHub: React.FC<OperationsAndGovernanceHubProp
                   <p className="text-slate-600 mt-1">{rep.desc}</p>
                 </div>
                 <div className="flex gap-2 pt-2 border-t border-slate-200">
-                  <button className="flex-1 py-1.5 bg-white border border-slate-300 rounded font-medium hover:bg-slate-100">
+                  <button
+                    onClick={() => handleExportReport(rep.cat, 'CSV')}
+                    className="flex-1 py-1.5 bg-white border border-slate-300 rounded font-medium hover:bg-slate-100"
+                  >
                     Export CSV
                   </button>
-                  <button className="flex-1 py-1.5 bg-[#0B2545] text-white rounded font-medium hover:bg-slate-800">
+                  <button
+                    onClick={() => handleExportReport(rep.cat, 'EXCEL')}
+                    className="flex-1 py-1.5 bg-[#0B2545] text-white rounded font-medium hover:bg-slate-800"
+                  >
                     Export Excel
                   </button>
                 </div>
@@ -1002,7 +1053,10 @@ export const OperationsAndGovernanceHub: React.FC<OperationsAndGovernanceHubProp
           </div>
 
           <div className="flex justify-end gap-3">
-            <button className="px-3.5 py-2 bg-slate-100 text-slate-700 rounded-lg font-medium">
+            <button
+              onClick={handleDownloadErrorReport}
+              className="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg font-medium transition-colors"
+            >
               Download 2-Row Error CSV Report
             </button>
             {importStep === 'STAGING_PREVIEW' ? (
