@@ -1,0 +1,20 @@
+{
+  "municipalityName": "Noida Municipal Corporation",
+  "municipalityCode": "NMC-UP16",
+  "tagline": "Transparent Collections. Trusted Governance.",
+  "receiptPrefix": "SUP/2026",
+  "financialYear": "2026-27",
+  "nextReceiptSequence": 12347,
+  "timezone": "Asia/Kolkata",
+  "currency": "INR",
+  "allowAdvanceOverpayment": false,
+  "requireOfficerApprovalForRegistrations": true,
+  "requireAdminApprovalForWaivers": true,
+  "paymentGatewayProvider": "RAZORPAY_MOCK",
+  "paymentGatewayStatus": "ACTIVE",
+  "smsProviderStatus": "ACTIVE",
+  "whatsappProviderStatus": "ACTIVE",
+  "govVerificationProviderStatus": "ACTIVE",
+  "updatedAt": "2026-10-10T05:00:00.000Z",
+  "updatedBy": "USR-ADM-01"
+}

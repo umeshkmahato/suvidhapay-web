@@ -13,16 +13,9 @@ import {
   Users,
   Sliders,
   FileBarChart,
-  ShieldCheck,
-  KeyRound,
-  BookOpen,
-  QrCode,
   CheckCircle2,
-  AlertTriangle,
-  RefreshCw,
-  Database,
 } from 'lucide-react';
-import { suvidhaApi } from './services/apiClient';
+import { LoginResult, suvidhaApi } from './services/apiClient';
 import {
   UserRole,
   MunicipalEntity,
@@ -46,85 +39,69 @@ import {
   TraceabilityRequirement,
 } from './types/suvidha';
 import {
-  INITIAL_ZONES,
-  INITIAL_WARDS,
-  INITIAL_CATEGORIES,
-  INITIAL_RATES,
-  INITIAL_ENTITIES,
-  INITIAL_DUES,
-  INITIAL_ADJUSTMENTS,
-  INITIAL_PAYMENTS,
-  INITIAL_RECEIPTS,
-  INITIAL_CLOSINGS,
-  INITIAL_RECONCILIATION,
-  INITIAL_REFUNDS_DISPUTES,
-  INITIAL_USERS,
-  INITIAL_NOTIFICATIONS,
-  INITIAL_AUDIT_LOGS,
   formatInr,
   Money,
 } from './data/mockSuvidhaData';
 import {
   ReceiptDetailModal,
   PublicVerificationModal,
-  AuthSimulatorModal,
   BlueprintDeliverablesModal,
 } from './components/SharedModals';
+import { LoginPage } from './components/features/auth/LoginPage';
+import { OperationalDashboard } from './components/features/dashboard/OperationalDashboard';
 import {
-  AdminDashboardView,
-  UnifiedEntitiesView,
-} from './components/AdminDashboardAndEntities';
-import {
-  DueLedgerAndGeneratorView,
-  PaymentsReconciliationView,
-  CashControlAndReceiptsView,
-} from './components/AdminDuesPaymentsReceipts';
-import {
-  UsersAgentsWardsView,
-  CategoriesAndRatesView,
-  OperationsAndGovernanceHub,
-} from './components/AdminGovernanceAndOps';
-import {
-  FieldAgentWorkspace,
-  CitizenPortalWorkspace,
-} from './components/AgentAndCitizenShells';
+  AppShellContextBar,
+  AppShellHeader,
+} from './components/shared/AppShell';
+import { RoleSidebar } from './components/shared/RoleSidebar';
+import { AdminDashboardView } from './components/features/dashboard/AdminDashboardView';
+import { UnifiedEntitiesView } from './components/features/entities/EntityDirectoryView';
+import { DueLedgerAndGeneratorView } from './components/features/payments/DueLedgerAndGeneratorView';
+import { PaymentsReconciliationView } from './components/features/payments/PaymentsReconciliationView';
+import { CashControlAndReceiptsView } from './components/features/receipts/CashControlAndReceiptsView';
+import { UserDirectoryView as UsersAgentsWardsView } from './components/features/users/UserDirectory';
+import { CategoriesAndRatesView } from './components/features/governance/CategoriesAndRatesView';
+import { OperationsAndGovernanceHub } from './components/features/governance/GovernanceOpsHub';
+import { FieldAgentWorkspace } from './components/features/collections/FieldAgentWorkspaceFeature';
+import { CitizenPortalWorkspace } from './components/features/collections/CitizenPortalWorkspaceFeature';
 
 export default function App() {
   const [activeRole, setActiveRole] = useState<UserRole>('ADMIN');
+  const [authSession, setAuthSession] = useState<LoginResult | null>(null);
   const [activeModule, setActiveModule] = useState<string>('dashboard');
   const [selectedWardFilter, setSelectedWardFilter] = useState<string>('ALL');
 
   // Master State across all SuvidhaPay modules
-  const [zones, setZones] = useState<Zone[]>(INITIAL_ZONES);
-  const [wards, setWards] = useState<Ward[]>(INITIAL_WARDS);
-  const [categories, setCategories] = useState<EntityCategory[]>(INITIAL_CATEGORIES);
-  const [rates, setRates] = useState<RateMaster[]>(INITIAL_RATES);
-  const [entities, setEntities] = useState<MunicipalEntity[]>(INITIAL_ENTITIES);
-  const [dues, setDues] = useState<DueRecord[]>(INITIAL_DUES);
-  const [adjustments, setAdjustments] = useState<DueAdjustment[]>(INITIAL_ADJUSTMENTS);
-  const [payments, setPayments] = useState<PaymentRecord[]>(INITIAL_PAYMENTS);
-  const [receipts, setReceipts] = useState<ReceiptRecord[]>(INITIAL_RECEIPTS);
-  const [closings, setClosings] = useState<DailyClosingRecord[]>(INITIAL_CLOSINGS);
-  const [reconciliations, setReconciliations] = useState<ReconciliationItem[]>(
-    INITIAL_RECONCILIATION
-  );
-  const [disputes, setDisputes] = useState<RefundDisputeRecord[]>(
-    INITIAL_REFUNDS_DISPUTES
-  );
-  const [users, setUsers] = useState<SystemUser[]>(INITIAL_USERS);
-  const [notifications, setNotifications] = useState<NotificationLog[]>(
-    INITIAL_NOTIFICATIONS
-  );
-  const [auditLogs, setAuditLogs] = useState<AuditLogEntry[]>(INITIAL_AUDIT_LOGS);
+  const [zones, setZones] = useState<Zone[]>([]);
+  const [wards, setWards] = useState<Ward[]>([]);
+  const [categories, setCategories] = useState<EntityCategory[]>([]);
+  const [rates, setRates] = useState<RateMaster[]>([]);
+  const [entities, setEntities] = useState<MunicipalEntity[]>([]);
+  const [dues, setDues] = useState<DueRecord[]>([]);
+  const [adjustments, setAdjustments] = useState<DueAdjustment[]>([]);
+  const [payments, setPayments] = useState<PaymentRecord[]>([]);
+  const [receipts, setReceipts] = useState<ReceiptRecord[]>([]);
+  const [closings, setClosings] = useState<DailyClosingRecord[]>([]);
+  const [reconciliations, setReconciliations] = useState<ReconciliationItem[]>([]);
+  const [disputes, setDisputes] = useState<RefundDisputeRecord[]>([]);
+  const [users, setUsers] = useState<SystemUser[]>([]);
+  const [notifications, setNotifications] = useState<NotificationLog[]>([]);
+  const [auditLogs, setAuditLogs] = useState<AuditLogEntry[]>([]);
   const [dbStatus, setDbStatus] = useState<string>('Connecting...');
   const [isDbLoading, setIsDbLoading] = useState<boolean>(true);
   const [lastSyncedAt, setLastSyncedAt] = useState<string | null>(null);
+  const [collectionSummary, setCollectionSummary] = useState<{
+    cashCollectionInr: number;
+    verifiedDigitalCollectionInr: number;
+    totalVerifiedCollectionInr: number;
+    pendingManualUpiInr: number;
+    paymentsCount: number;
+  } | null>(null);
 
   // Modals State
   const [selectedReceiptModal, setSelectedReceiptModal] =
     useState<ReceiptRecord | null>(null);
   const [isPublicVerifyOpen, setIsPublicVerifyOpen] = useState(false);
-  const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [isBlueprintModalOpen, setIsBlueprintModalOpen] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
@@ -133,10 +110,37 @@ export default function App() {
     setTimeout(() => setToastMessage(null), 4000);
   };
 
+  const resetWorkspaceData = () => {
+    setZones([]);
+    setWards([]);
+    setCategories([]);
+    setRates([]);
+    setEntities([]);
+    setDues([]);
+    setAdjustments([]);
+    setPayments([]);
+    setReceipts([]);
+    setClosings([]);
+    setReconciliations([]);
+    setDisputes([]);
+    setUsers([]);
+    setNotifications([]);
+    setAuditLogs([]);
+    setDbStatus('Connecting...');
+    setIsDbLoading(true);
+    setLastSyncedAt(null);
+    setCollectionSummary(null);
+    setSelectedReceiptModal(null);
+    setIsPublicVerifyOpen(false);
+    setIsBlueprintModalOpen(false);
+    setToastMessage(null);
+  };
+
   // Centralized Refresh Function to sync all master state from live backend PostgreSQL DB
-  const refreshData = async () => {
+  const refreshData = async (role: UserRole = activeRole) => {
     try {
       setIsDbLoading(true);
+      const canViewGovernanceData = role === 'ADMIN' || role === 'OFFICER';
       const [
         srvZones,
         srvWards,
@@ -154,25 +158,38 @@ export default function App() {
         srvNotifs,
         srvAudits,
         srvHealth,
+        srvCollectionSummary,
       ] = await Promise.all([
-        suvidhaApi.request<Zone[]>('ADMIN', '/zones'),
-        suvidhaApi.request<Ward[]>('ADMIN', '/wards'),
-        suvidhaApi.request<EntityCategory[]>('ADMIN', '/categories'),
-        suvidhaApi.request<MunicipalEntity[]>('ADMIN', '/entities?limit=100'),
-        suvidhaApi.request<RateMaster[]>('ADMIN', '/rates'),
-        suvidhaApi.request<DueRecord[]>('ADMIN', '/dues?limit=100'),
-        suvidhaApi.request<DueAdjustment[]>('ADMIN', '/adjustments'),
-        suvidhaApi.request<PaymentRecord[]>('ADMIN', '/payments?limit=100'),
-        suvidhaApi.request<ReceiptRecord[]>('ADMIN', '/receipts?limit=100'),
-        suvidhaApi.request<DailyClosingRecord[]>('ADMIN', '/collections/closing'),
-        suvidhaApi.request<ReconciliationItem[]>('ADMIN', '/reconciliation'),
-        suvidhaApi.request<RefundDisputeRecord[]>('ADMIN', '/disputes'),
-        suvidhaApi.request<SystemUser[]>('ADMIN', '/users?limit=100'),
-        suvidhaApi.request<NotificationLog[]>('ADMIN', '/notifications?limit=100'),
-        suvidhaApi.request<AuditLogEntry[]>('ADMIN', '/audit-logs?limit=100'),
-        suvidhaApi.request<{ database?: string; status?: string }>('ADMIN', '/health'),
+        suvidhaApi.request<Zone[]>(role, '/zones'),
+        suvidhaApi.request<Ward[]>(role, '/wards'),
+        suvidhaApi.request<EntityCategory[]>(role, '/categories'),
+        suvidhaApi.request<MunicipalEntity[]>(role, '/entities?limit=100'),
+        suvidhaApi.request<RateMaster[]>(role, '/rates'),
+        suvidhaApi.request<DueRecord[]>(role, '/dues?limit=100'),
+        canViewGovernanceData ? suvidhaApi.request<DueAdjustment[]>(role, '/adjustments') : Promise.resolve(null),
+        suvidhaApi.request<PaymentRecord[]>(role, '/payments?limit=100'),
+        suvidhaApi.request<ReceiptRecord[]>(role, '/receipts?limit=100'),
+        suvidhaApi.request<DailyClosingRecord[]>(role, '/collections/closing'),
+        canViewGovernanceData ? suvidhaApi.request<ReconciliationItem[]>(role, '/reconciliation') : Promise.resolve(null),
+        canViewGovernanceData ? suvidhaApi.request<RefundDisputeRecord[]>(role, '/disputes') : Promise.resolve(null),
+        canViewGovernanceData ? suvidhaApi.request<SystemUser[]>(role, '/users?limit=100') : Promise.resolve(null),
+        canViewGovernanceData ? suvidhaApi.request<NotificationLog[]>(role, '/notifications?limit=100') : Promise.resolve(null),
+        canViewGovernanceData ? suvidhaApi.request<AuditLogEntry[]>(role, '/audit-logs?limit=100') : Promise.resolve(null),
+        suvidhaApi.request<{ database?: string; status?: string }>(role, '/health'),
+        role === 'AGENT'
+          ? suvidhaApi.request<{
+              cashCollectionInr: number;
+              verifiedDigitalCollectionInr: number;
+              totalVerifiedCollectionInr: number;
+              pendingManualUpiInr: number;
+              paymentsCount: number;
+            }>(role, '/collections/summary')
+          : Promise.resolve(null),
       ]);
-      if (srvZones && Array.isArray(srvZones) && srvZones.length > 0) setZones(srvZones);
+      if (!srvHealth || !srvEntities || !srvPayments || !srvDues) {
+        throw new Error('Required server data is unavailable; previous records may be stale');
+      }
+      if (srvZones && Array.isArray(srvZones)) setZones(srvZones);
       if (srvWards && Array.isArray(srvWards) && srvWards.length > 0) setWards(srvWards);
       if (srvCategories && Array.isArray(srvCategories) && srvCategories.length > 0) setCategories(srvCategories);
       if (srvEntities && Array.isArray(srvEntities)) setEntities(srvEntities);
@@ -187,10 +204,11 @@ export default function App() {
       if (srvUsers && Array.isArray(srvUsers)) setUsers(srvUsers);
       if (srvNotifs && Array.isArray(srvNotifs)) setNotifications(srvNotifs);
       if (srvAudits && Array.isArray(srvAudits)) setAuditLogs(srvAudits);
+      if (srvCollectionSummary) setCollectionSummary(srvCollectionSummary);
       if (srvHealth?.database) {
         setDbStatus(`${srvHealth.database} (Live DB)`);
       } else {
-        setDbStatus('POSTGRESQL (Live DB)');
+        setDbStatus('Storage status unavailable');
       }
       setLastSyncedAt(new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
     } catch (err) {
@@ -201,14 +219,10 @@ export default function App() {
     }
   };
 
-  // Hydrate from live /api/v1 backend on startup
+  // Load only the data visible to the authenticated role.
   useEffect(() => {
-    let mounted = true;
-    void refreshData();
-    return () => {
-      mounted = false;
-    };
-  }, []);
+    if (authSession) void refreshData(authSession.user.role);
+  }, [authSession]);
 
   const appendAuditLog = (
     action: string,
@@ -221,14 +235,7 @@ export default function App() {
     const newEntry: AuditLogEntry = {
       id: `AUD-${10090 + auditLogs.length + 1}`,
       timestamp: new Date().toLocaleString('en-IN'),
-      actorName:
-        activeRole === 'ADMIN'
-          ? 'Anupam Kulkarni (Admin)'
-          : activeRole === 'OFFICER'
-          ? 'Rajeshwari Verma (RO)'
-          : activeRole === 'AGENT'
-          ? 'Suresh Kumar Sharma (AG-104)'
-          : 'Citizen Portal User',
+      actorName: authSession?.user.fullName || 'Unknown user',
       actorRole: activeRole,
       action,
       module,
@@ -366,22 +373,23 @@ export default function App() {
     }
   };
 
-  const handleRecordCollection = (
+  const handleRecordCollection = async (
     entity: MunicipalEntity,
     amount: number,
     method: PaymentMethod,
     reference: string,
-    isOffline: boolean
-  ): ReceiptRecord => {
+    isOffline: boolean,
+    idempotencyKey?: string
+  ): Promise<ReceiptRecord | null> => {
+    if (!authSession) return null;
     const isManualUpi = method === 'UPI_REFERENCE';
 
     if (isOffline) {
-      const receiptNo = `PROV-OFFLINE-${Date.now().toString().slice(-5)}`;
-      const newPayId = `PAY-OFFLINE-${Date.now().toString().slice(-4)}`;
+      const offlineId = idempotencyKey || `offline-${crypto.randomUUID()}`;
       const provReceipt: ReceiptRecord = {
-        id: `RCP-PROV-${Date.now().toString().slice(-4)}`,
-        receiptNumber: receiptNo,
-        paymentId: newPayId,
+        id: offlineId,
+        receiptNumber: `PROVISIONAL-${offlineId.slice(-8)}`,
+        paymentId: offlineId,
         entityId: entity.id,
         entityName: entity.name,
         registrationNumber: entity.registrationNumber,
@@ -394,120 +402,82 @@ export default function App() {
         remainingOutstanding: entity.outstandingAmount,
         paymentMethod: method,
         transactionReference: reference,
-        agentName: 'Suresh Kumar Sharma (AG-104)',
-        agentId: 'AG-104',
-        verificationCode: `VRF-OFFLINE-${Date.now().toString().slice(-4)}`,
+        agentName: authSession.user.fullName,
+        agentId: authSession.user.loginIdentifier,
+        verificationCode: `OFFLINE-${offlineId.slice(-8)}`,
         status: 'PROVISIONAL_OFFLINE',
       };
-      setReceipts((prev) => [provReceipt, ...prev]);
-      showToast('Provisional offline submission queued locally.');
+      showToast('Provisional collection is stored on this device and awaits synchronization.');
       return provReceipt;
     }
 
     if (isManualUpi) {
-      // Async call backend for Manual UPI logging
-      void (async () => {
-        const res = await suvidhaApi.requestWithMeta<PaymentRecord>('AGENT', '/payments/manual-upi', {
+      const res = await suvidhaApi.requestWithMeta<{ payment: PaymentRecord }>(
+        'AGENT',
+        '/payments/manual-upi',
+        {
           method: 'POST',
-          headers: { 'Idempotency-Key': `upi-${entity.id}-${Date.now()}` },
+          headers: { 'Idempotency-Key': idempotencyKey || `upi-${crypto.randomUUID()}` },
           body: JSON.stringify({
             entityId: entity.id,
             amountPaise: Money.inrToPaise(amount),
             upiReferenceNumber: reference,
             payerMobile: entity.mobile,
-            notes: 'Field manual UPI UTR reference logged',
+            notes: `Field manual UPI reference recorded by ${authSession.user.loginIdentifier}`,
           }),
-        });
-        if (res.success) {
-          showToast(`Manual UPI UTR ${reference} recorded. Status: PENDING_VERIFICATION.`);
-          await refreshData();
-        } else {
-          showToast(res.error?.message || 'Failed to log manual UPI reference');
         }
-      })();
-
+      );
+      if (!res.success || !res.data?.payment) {
+        showToast(res.error?.message || 'Failed to record manual UPI reference.');
+        return null;
+      }
+      const payment = res.data.payment;
       const ackReceipt: ReceiptRecord = {
-        id: `ACK-UPI-${Date.now().toString().slice(-4)}`,
-        receiptNumber: `ACK-UPI-${reference.slice(-6)}`,
-        paymentId: `PAY-UPI-${Date.now().toString().slice(-4)}`,
+        id: payment.id,
+        receiptNumber: 'PENDING VERIFICATION — NOT A FINAL RECEIPT',
+        paymentId: payment.id,
         entityId: entity.id,
         entityName: entity.name,
         registrationNumber: entity.registrationNumber,
         categoryName: entity.category,
         wardName: entity.wardName,
-        dateTime: new Date().toLocaleString('en-IN'),
+        dateTime: payment.timestamp,
         previousOutstanding: entity.outstandingAmount,
         currentPayment: amount,
         allocatedAmount: 0,
         remainingOutstanding: entity.outstandingAmount,
         paymentMethod: method,
         transactionReference: reference,
-        agentName: 'Suresh Kumar Sharma (AG-104)',
-        agentId: 'AG-104',
-        verificationCode: `ACK-${Date.now().toString().slice(-4)}`,
+        agentName: authSession.user.fullName,
+        agentId: authSession.user.loginIdentifier,
+        verificationCode: 'PENDING OFFICER VERIFICATION',
         status: 'PENDING_UPI_VERIFICATION',
       };
-      setReceipts((prev) => [ackReceipt, ...prev]);
+      showToast(`Manual UPI UTR ${payment.referenceNumber} recorded for officer verification.`);
+      await refreshData('AGENT');
       return ackReceipt;
     }
 
-    // CASH PAYMENT
-    const receiptNo = `SUP/2026/0000123${47 + receipts.length}`;
-    const newPayId = `PAY-2026-${9085 + payments.length}`;
-
-    void (async () => {
-      const res = await suvidhaApi.requestWithMeta<ReceiptRecord>('AGENT', '/payments/cash', {
+    const res = await suvidhaApi.requestWithMeta<{
+      payment: PaymentRecord;
+      receipt: ReceiptRecord;
+    }>('AGENT', '/payments/cash', {
         method: 'POST',
-        headers: { 'Idempotency-Key': `cash-${entity.id}-${Date.now()}` },
+        headers: { 'Idempotency-Key': idempotencyKey || `cash-${crypto.randomUUID()}` },
         body: JSON.stringify({
           entityId: entity.id,
           amountPaise: Money.inrToPaise(amount),
-          notes: `Field collection by AG-104 for ${entity.registrationNumber}`,
+          referenceNumber: reference,
+          notes: `Field collection by ${authSession.user.loginIdentifier} for ${entity.registrationNumber}`,
         }),
       });
-      if (res.success && res.data) {
-        showToast(`Cash payment verified! Receipt ${res.data.receiptNumber} issued.`);
-        await refreshData();
-      } else {
-        showToast(res.error?.message || 'Cash payment failed');
-      }
-    })();
-
-    const cashReceipt: ReceiptRecord = {
-      id: `RCP-0${receipts.length + 1}`,
-      receiptNumber: receiptNo,
-      paymentId: newPayId,
-      entityId: entity.id,
-      entityName: entity.name,
-      registrationNumber: entity.registrationNumber,
-      categoryName: entity.category,
-      wardName: entity.wardName,
-      dateTime: new Date().toLocaleString('en-IN'),
-      previousOutstanding: entity.outstandingAmount,
-      currentPayment: amount,
-      allocatedAmount: amount,
-      remainingOutstanding: Math.max(0, entity.outstandingAmount - amount),
-      paymentMethod: method,
-      transactionReference: reference,
-      agentName: 'Suresh Kumar Sharma',
-      agentId: 'AG-104',
-      verificationCode: `VRF-${Date.now().toString().slice(-4)}-SUP26`,
-      status: 'VALID',
-    };
-
-    setReceipts((prev) => [cashReceipt, ...prev]);
-    setEntities((prev) =>
-      prev.map((e) =>
-        e.id === entity.id
-          ? {
-              ...e,
-              paidAllocated: e.paidAllocated + amount,
-              outstandingAmount: Math.max(0, e.outstandingAmount - amount),
-            }
-          : e
-      )
-    );
-    return cashReceipt;
+    if (!res.success || !res.data?.receipt) {
+      showToast(res.error?.message || 'Cash payment failed.');
+      return null;
+    }
+    showToast(`Cash payment verified. Official receipt ${res.data.receipt.receiptNumber} issued.`);
+    await refreshData('AGENT');
+    return res.data.receipt;
   };
 
   const handleCitizenOnlinePay = (
@@ -591,8 +561,31 @@ export default function App() {
   };
 
   const handleNavigateRequirement = (req: TraceabilityRequirement) => {
-    setActiveRole(req.targetRoleShell);
+    if (req.targetRoleShell !== activeRole) {
+      showToast(`Sign in with an authorized ${req.targetRoleShell} account to open this workspace.`);
+      return;
+    }
     setActiveModule(req.targetModuleKey);
+  };
+
+  const handleAuthenticated = (session: LoginResult) => {
+    suvidhaApi.clearTokens();
+    suvidhaApi.setToken(session.user.role, session.accessToken);
+    resetWorkspaceData();
+    setActiveRole(session.user.role);
+    setActiveModule(session.user.role === 'AGENT' ? 'agent_home' : session.user.role === 'CITIZEN' ? 'citizen_home' : 'dashboard');
+    setAuthSession(session);
+  };
+
+  const handleSignOut = () => {
+    if (authSession?.refreshToken) {
+      void suvidhaApi.logout(authSession.refreshToken);
+    }
+    suvidhaApi.clearTokens();
+    resetWorkspaceData();
+    setAuthSession(null);
+    setActiveRole('ADMIN');
+    setActiveModule('dashboard');
   };
 
   const adminNavItems = [
@@ -615,112 +608,32 @@ export default function App() {
     { id: 'reports_audit', label: 'Ward Reports & Audit Logs', icon: FileBarChart },
   ];
 
+  if (!authSession) {
+    return <LoginPage onAuthenticated={handleAuthenticated} />;
+  }
+
   return (
     <div className="min-h-screen flex flex-col bg-[#F8FAFC] text-[#0F172A]">
-      {/* Strict 3-Zone Top Navigation Bar Contract */}
-      <header className="sticky top-0 z-40 bg-white border-b border-slate-200 px-6 py-3 flex items-center justify-between gap-8 no-print">
-        {/* Zone 1: Single text element wordmark */}
-        <a
-          href="#top"
-          onClick={(e) => {
-            e.preventDefault();
-            setActiveModule('dashboard');
-          }}
-          className="text-lg font-bold tracking-tight text-[#0B2545] whitespace-nowrap shrink-0 font-display"
-        >
-          SuvidhaPay
-        </a>
+      <AppShellHeader
+        userName={authSession.user.fullName}
+        activeRole={activeRole}
+        onGoHome={() => setActiveModule('dashboard')}
+        onOpenTraceability={() => setIsBlueprintModalOpen(true)}
+        onSignOut={handleSignOut}
+      />
 
-        {/* Zone 2: 4 Concise Single-Line Role Shell Switchers */}
-        <nav className="flex items-center gap-6 text-sm font-medium text-slate-600 overflow-x-auto">
-          {(
-            [
-              { role: 'ADMIN', label: 'Admin Console' },
-              { role: 'OFFICER', label: 'Officer Console' },
-              { role: 'AGENT', label: 'Field Agent App' },
-              { role: 'CITIZEN', label: 'Citizen Portal' },
-            ] as const
-          ).map((item) => (
-            <button
-              key={item.role}
-              onClick={() => {
-                setActiveRole(item.role);
-                if (item.role === 'ADMIN' || item.role === 'OFFICER') {
-                  setActiveModule('dashboard');
-                }
-              }}
-              className={`py-1 transition-colors whitespace-nowrap shrink-0 border-b-2 ${
-                activeRole === item.role
-                  ? 'border-[#0B2545] text-[#0B2545] font-bold'
-                  : 'border-transparent hover:text-slate-900'
-              }`}
-            >
-              {item.label}
-            </button>
-          ))}
-        </nav>
+      <AppShellContextBar
+        dbStatus={dbStatus}
+        lastSyncedAt={lastSyncedAt}
+        isDbLoading={isDbLoading}
+        activeRole={activeRole}
+        onRefresh={() => {
+          void refreshData();
+          showToast('Refreshed live state from PostgreSQL database.');
+        }}
+        onOpenPublicVerify={() => setIsPublicVerifyOpen(true)}
+      />
 
-        {/* Zone 3: 1 Primary Action Button */}
-        <div className="flex items-center shrink-0">
-          <button
-            onClick={() => setIsBlueprintModalOpen(true)}
-            className="px-4 py-2 text-xs font-semibold text-white bg-[#0B2545] rounded-lg hover:bg-slate-800 transition-colors whitespace-nowrap shrink-0"
-          >
-            Traceability Matrix
-          </button>
-        </div>
-      </header>
-
-      {/* Secondary Contextual Workspace Strip (Below Header) */}
-      <div className="bg-slate-900 text-slate-200 px-6 py-2 text-xs flex flex-wrap items-center justify-between gap-4 no-print">
-        <div className="flex flex-wrap items-center gap-3">
-          <span className="font-semibold text-white">
-            Noida Municipal Corporation
-          </span>
-          <span className="text-slate-500">·</span>
-          <span>Tagline: Transparent Collections. Trusted Governance.</span>
-          <span className="text-slate-500">·</span>
-          <span className="font-mono text-teal-300">
-            Active Shell: {activeRole}
-          </span>
-        </div>
-
-        <div className="flex flex-wrap items-center gap-3">
-          <div className="flex items-center gap-1.5 px-2 py-0.5 bg-slate-800 rounded border border-slate-700 text-[11px]">
-            <Database className="w-3 h-3 text-emerald-400" />
-            <span className="text-slate-400">DB:</span>
-            <span className="font-semibold text-emerald-300 font-mono">{dbStatus}</span>
-            {lastSyncedAt && <span className="text-[10px] text-slate-400">({lastSyncedAt})</span>}
-          </div>
-          <button
-            onClick={() => { void refreshData(); showToast('Refreshed live state from PostgreSQL database.'); }}
-            disabled={isDbLoading}
-            className="flex items-center gap-1 px-2 py-0.5 bg-[#134074] hover:bg-[#0B2545] text-white rounded text-[11px] font-medium transition-colors"
-            title="Reload latest state from PostgreSQL database"
-          >
-            <RefreshCw className={`w-3 h-3 ${isDbLoading ? 'animate-spin' : ''}`} />
-            <span>{isDbLoading ? 'Syncing...' : 'Sync DB'}</span>
-          </button>
-          <span className="text-slate-600">·</span>
-          <button
-            onClick={() => setIsPublicVerifyOpen(true)}
-            className="text-slate-200 hover:text-white underline font-medium flex items-center gap-1"
-          >
-            <QrCode className="w-3.5 h-3.5 text-teal-400" />
-            <span>Public Receipt Verification (Sec 34)</span>
-          </button>
-          <span className="text-slate-600">·</span>
-          <button
-            onClick={() => setIsAuthModalOpen(true)}
-            className="text-slate-200 hover:text-white underline font-medium flex items-center gap-1"
-          >
-            <KeyRound className="w-3.5 h-3.5 text-teal-400" />
-            <span>Auth Simulator</span>
-          </button>
-        </div>
-      </div>
-
-      {/* Toast Feedback Banner */}
       {toastMessage && (
         <div className="fixed bottom-5 right-5 z-50 bg-slate-900 text-white px-4 py-3 rounded-xl shadow-lg border border-slate-700 flex items-center gap-2.5 text-xs">
           <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
@@ -728,67 +641,24 @@ export default function App() {
         </div>
       )}
 
-      {/* Role-Specific Application Shells */}
       {(activeRole === 'ADMIN' || activeRole === 'OFFICER') && (
         <div className="flex-1 flex flex-col lg:flex-row">
-          {/* Left Sidebar Navigation for Admin & Officer Shells */}
-          <aside className="w-full lg:w-64 bg-white border-b lg:border-b-0 lg:border-r border-slate-200 p-4 shrink-0 no-print">
-            <div className="mb-3 px-2">
-              <p className="text-[11px] font-mono uppercase tracking-wider text-slate-400 font-semibold">
-                {activeRole === 'ADMIN'
-                  ? 'Part C — Admin ERP Console'
-                  : 'Part J — Revenue Officer Ops'}
-              </p>
-              <p className="text-xs font-bold text-slate-900 mt-0.5">
-                {activeRole === 'ADMIN'
-                  ? 'Anupam Kulkarni, IAS (Admin)'
-                  : 'Rajeshwari Verma (Zone 2 RO)'}
-              </p>
-            </div>
+          <RoleSidebar
+            title={activeRole === 'ADMIN' ? 'Part C — Admin ERP Console' : 'Part J — Revenue Officer Ops'}
+            subtitle={activeRole === 'ADMIN' ? `${authSession.user.fullName} (Admin)` : `${authSession.user.fullName} (Revenue Officer)`}
+            navItems={(activeRole === 'ADMIN' ? adminNavItems : officerNavItems)}
+            activeModule={activeModule}
+            onSelectModule={setActiveModule}
+            guardrailText={[
+              '• Unverified manual UPI UTRs never count as verified revenue.',
+              '• Historical dues retain original generated rates.',
+              '• Zero ordinary delete buttons on financial records.',
+            ]}
+          />
 
-            <div className="space-y-1">
-              {(activeRole === 'ADMIN' ? adminNavItems : officerNavItems).map(
-                (nav) => {
-                  const Icon = nav.icon;
-                  const isActive = activeModule === nav.id;
-                  return (
-                    <button
-                      key={nav.id}
-                      onClick={() => setActiveModule(nav.id)}
-                      className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-xs font-semibold transition-colors text-left ${
-                        isActive
-                          ? 'bg-[#0B2545] text-white'
-                          : 'text-slate-700 hover:bg-slate-100'
-                      }`}
-                    >
-                      <Icon className="w-4 h-4 shrink-0" />
-                      <span className="truncate">{nav.label}</span>
-                    </button>
-                  );
-                }
-              )}
-            </div>
-
-            <div className="mt-6 p-3.5 bg-slate-50 border border-slate-200 rounded-xl text-[11px] text-slate-600 space-y-1.5">
-              <p className="font-bold text-slate-900">
-                Core Financial Guardrails
-              </p>
-              <p>
-                • Unverified manual UPI UTRs never count as verified revenue.
-              </p>
-              <p>
-                • Historical dues retain original generated rates.
-              </p>
-              <p>
-                • Zero ordinary delete buttons on financial records.
-              </p>
-            </div>
-          </aside>
-
-          {/* Main Admin / Officer Workspace Content */}
           <main className="flex-1 p-5 lg:p-6 overflow-x-hidden">
             {activeModule === 'dashboard' && (
-              <AdminDashboardView
+              <OperationalDashboard
                 entities={entities}
                 payments={payments}
                 closings={closings}
@@ -810,7 +680,7 @@ export default function App() {
                 onAddEntity={handleAddEntity}
                 onUpdateEntityStatus={handleUpdateEntityStatus}
                 onOpenQuickCollect={() => {
-                  setActiveRole('AGENT');
+                  showToast('Sign in with a field agent account to record a collection.');
                 }}
               />
             )}
@@ -925,7 +795,7 @@ export default function App() {
                       role: newUser.role,
                       assignedWard: newUser.assignedWard,
                       assignedZone: newUser.assignedZone,
-                      password: 'Suvidha@Staff2026',
+                      password: newUser.password,
                     }),
                   });
                   if (res.success) {
@@ -933,6 +803,7 @@ export default function App() {
                     await refreshData();
                   } else {
                     showToast(res.error?.message || 'Failed to create user');
+                    throw new Error('User creation failed');
                   }
                 }}
               />
@@ -961,6 +832,7 @@ export default function App() {
                     await refreshData();
                   } else {
                     showToast(res.error?.message || 'Failed to publish rate master');
+                    throw new Error('Rate publication failed');
                   }
                 }}
               />
@@ -1025,34 +897,79 @@ export default function App() {
         <main className="flex-1 p-4 lg:p-6 max-w-7xl w-full mx-auto">
           <FieldAgentWorkspace
             entities={entities}
+            categories={categories}
             dues={dues}
             payments={payments}
             receipts={receipts}
             closings={closings}
+            collectionSummary={collectionSummary}
+            currentUser={authSession.user}
+            lastSyncedAt={lastSyncedAt}
+            onNotify={showToast}
+            onCreateRegistration={async (registration) => {
+              const response = await suvidhaApi.requestWithMeta<MunicipalEntity>('AGENT', '/entities', {
+                method: 'POST',
+                body: JSON.stringify(registration),
+              });
+              if (!response.success) {
+                showToast(response.error?.message || 'Entity registration failed.');
+                return false;
+              }
+              showToast('Registration submitted to the officer review queue.');
+              await refreshData('AGENT');
+              return true;
+            }}
             onRecordCollection={handleRecordCollection}
             onSubmitDailyClosing={async (actualCash, note) => {
-              const createRes = await suvidhaApi.requestWithMeta<DailyClosingRecord>('AGENT', '/collections/closing', {
-                method: 'POST',
-                body: JSON.stringify({
-                  actualCashCount: actualCash,
-                  discrepancyNote: note,
-                }),
-              });
-              if (createRes.success && createRes.data) {
-                await suvidhaApi.requestWithMeta('AGENT', `/collections/closing/${createRes.data.id}/submit`, {
-                  method: 'POST',
-                });
-                showToast('Daily Cash Closing submitted to Revenue Officer queue.');
-                await refreshData();
-              } else {
-                showToast(createRes.error?.message || 'Failed to submit daily cash closing');
+              const today = new Date().toISOString().slice(0, 10);
+              let closingId = closings.find(
+                (closing) =>
+                  closing.agentId === authSession.user.loginIdentifier &&
+                  closing.date === today &&
+                  closing.status === 'OPEN'
+              )?.id;
+
+              if (!closingId) {
+                const createRes = await suvidhaApi.requestWithMeta<DailyClosingRecord>(
+                  'AGENT',
+                  '/collections/closing',
+                  {
+                    method: 'POST',
+                    body: JSON.stringify({
+                      actualCashCount: actualCash,
+                      discrepancyNote: note,
+                    }),
+                  }
+                );
+                if (!createRes.success || !createRes.data) {
+                  showToast(createRes.error?.message || 'Failed to create daily cash closing.');
+                  await refreshData('AGENT');
+                  return false;
+                }
+                closingId = createRes.data.id;
               }
+
+              const submitRes = await suvidhaApi.requestWithMeta<DailyClosingRecord>(
+                'AGENT',
+                `/collections/closing/${closingId}/submit`,
+                {
+                  method: 'POST',
+                  body: JSON.stringify({
+                    actualCashCount: actualCash,
+                    discrepancyNote: note,
+                  }),
+                }
+              );
+              if (submitRes.success) {
+                showToast('Daily Cash Closing submitted to Revenue Officer queue.');
+                await refreshData('AGENT');
+                return true;
+              }
+              showToast(submitRes.error?.message || 'Closing could not be submitted.');
+              await refreshData('AGENT');
+              return false;
             }}
             onSelectReceipt={setSelectedReceiptModal}
-            onNavigateNewReg={() => {
-              setActiveRole('ADMIN');
-              setActiveModule('entities');
-            }}
           />
         </main>
       )}
@@ -1080,12 +997,6 @@ export default function App() {
         onClose={() => setIsPublicVerifyOpen(false)}
         receipts={receipts}
       />
-      <AuthSimulatorModal
-        isOpen={isAuthModalOpen}
-        onClose={() => setIsAuthModalOpen(false)}
-        currentRole={activeRole}
-        onSelectRole={setActiveRole}
-      />
       <BlueprintDeliverablesModal
         isOpen={isBlueprintModalOpen}
         onClose={() => setIsBlueprintModalOpen(false)}
@@ -1094,4 +1005,3 @@ export default function App() {
     </div>
   );
 }
-

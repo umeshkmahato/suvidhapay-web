@@ -76,7 +76,7 @@ export class AuthAndUsersService {
     correlationId: string;
   }) {
     const config = loadConfig();
-    return this.store.withTransaction('AUTH_LOGIN', (db) => {
+    const result = await this.store.withTransaction('AUTH_LOGIN', (db) => {
       const user = db.users.find(
         (u) =>
           u.loginIdentifier.toLowerCase() ===
@@ -97,11 +97,12 @@ export class AuthAndUsersService {
       }
 
       if (user.status === 'LOCKED') {
-        throw new AppError(
-          423,
-          'ACCOUNT_LOCKED',
-          'Account is locked due to excessive failed login attempts'
-        );
+        if (!user.lockedUntil || new Date(user.lockedUntil).getTime() > Date.now()) {
+          throw new AppError(423, 'ACCOUNT_LOCKED', 'Account is temporarily locked');
+        }
+        user.status = 'ACTIVE';
+        user.failedLoginAttempts = 0;
+        user.lockedUntil = null;
       }
 
       const validPassword = verifyPassword(params.password, user.passwordHash);
@@ -111,7 +112,13 @@ export class AuthAndUsersService {
           user.status = 'LOCKED';
           user.lockedUntil = new Date(Date.now() + 15 * 60 * 1000).toISOString();
         }
-        throw new AppError(401, 'INVALID_CREDENTIALS', 'Invalid login identifier or password');
+        appendAudit(db, {
+          actorName: user.id, actorRole: user.role, action: 'USER_LOGIN_FAILED', module: 'AUTHENTICATION',
+          entityType: 'USER', entityId: user.id, previousValueSummary: 'Authentication attempt',
+          newValueSummary: user.status === 'LOCKED' ? 'Account temporarily locked' : 'Invalid credentials',
+          ipAddress: params.ipAddress, correlationId: params.correlationId,
+        });
+        return { error: new AppError(401, 'INVALID_CREDENTIALS', 'Invalid login identifier or password') };
       }
 
       user.failedLoginAttempts = 0;
@@ -179,6 +186,8 @@ export class AuthAndUsersService {
         user: sanitizeUserDto(user),
       };
     });
+    if ('error' in result) throw result.error;
+    return result;
   }
 
   public async refreshSession(params: {
@@ -278,6 +287,9 @@ export class AuthAndUsersService {
   }
 
   public async forgotPassword(loginIdentifier: string) {
+    if (!loadConfig().demoMode) {
+      throw new AppError(503, 'PASSWORD_RESET_NOT_CONFIGURED', 'Password recovery requires a configured secure delivery provider');
+    }
     return this.store.withTransaction('AUTH_FORGOT_PASSWORD', (db) => {
       const user = db.users.find(
         (u) =>
@@ -289,7 +301,7 @@ export class AuthAndUsersService {
       }
       const resetToken = `rst_${crypto.randomBytes(12).toString('hex')}`;
       db.resetTokens.push({
-        token: resetToken,
+        token: crypto.createHash('sha256').update(resetToken).digest('hex'),
         userId: user.id,
         expiresAt: new Date(Date.now() + 15 * 60 * 1000).toISOString(),
         usedAt: null,
@@ -304,7 +316,8 @@ export class AuthAndUsersService {
 
   public async resetPassword(token: string, newPassword: string) {
     return this.store.withTransaction('AUTH_RESET_PASSWORD', (db) => {
-      const record = db.resetTokens.find((t) => t.token === token);
+      const digest = crypto.createHash('sha256').update(token).digest('hex');
+      const record = db.resetTokens.find((t) => t.token === digest);
       if (!record || record.usedAt) {
         throw new AppError(400, 'INVALID_RESET_TOKEN', 'Reset token is invalid or already used');
       }

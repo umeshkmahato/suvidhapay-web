@@ -1,0 +1,58 @@
+[
+  {
+    "id": "WD-12",
+    "code": "W-12",
+    "name": "Ward 12 — Atta Market & Sector 18",
+    "zoneId": "ZN-02",
+    "zoneName": "Zone 2 — Central Commercial Hub",
+    "assignedOfficerId": "USR-OFF-01",
+    "assignedOfficerName": "Rajeshwari Verma (RO)",
+    "assignedAgentsCount": 6,
+    "registeredEntitiesCount": 612,
+    "outstandingDues": 318400,
+    "todayCollection": 48250,
+    "status": "ACTIVE"
+  },
+  {
+    "id": "WD-14",
+    "code": "W-14",
+    "name": "Ward 14 — Botanical Transit Hub",
+    "zoneId": "ZN-02",
+    "zoneName": "Zone 2 — Central Commercial Hub",
+    "assignedOfficerId": "USR-OFF-01",
+    "assignedOfficerName": "Rajeshwari Verma (RO)",
+    "assignedAgentsCount": 4,
+    "registeredEntitiesCount": 489,
+    "outstandingDues": 214000,
+    "todayCollection": 32900,
+    "status": "ACTIVE"
+  },
+  {
+    "id": "WD-04",
+    "code": "W-04",
+    "name": "Ward 04 — Old Bus Stand & Railway Rd",
+    "zoneId": "ZN-01",
+    "zoneName": "Zone 1 — North Civic Sector",
+    "assignedOfficerId": "USR-OFF-02",
+    "assignedOfficerName": "Arvind Swaminathan (ARO)",
+    "assignedAgentsCount": 5,
+    "registeredEntitiesCount": 530,
+    "outstandingDues": 276500,
+    "todayCollection": 29400,
+    "status": "ACTIVE"
+  },
+  {
+    "id": "WD-19",
+    "code": "W-19",
+    "name": "Ward 19 — Phase 2 Sabzi Mandi",
+    "zoneId": "ZN-03",
+    "zoneName": "Zone 3 — South Transport & Mandi",
+    "assignedOfficerId": "USR-OFF-02",
+    "assignedOfficerName": "Arvind Swaminathan (ARO)",
+    "assignedAgentsCount": 4,
+    "registeredEntitiesCount": 445,
+    "outstandingDues": 189200,
+    "todayCollection": 24150,
+    "status": "ACTIVE"
+  }
+]

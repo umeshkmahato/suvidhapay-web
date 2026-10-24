@@ -100,6 +100,8 @@ export class EntitiesRatesDuesService {
       list = list.filter(
         (e) => linked.includes(e.id) || e.mobile === actor.loginIdentifier
       );
+    } else if (actor.role === 'OFFICER' || actor.role === 'AGENT') {
+      list = list.filter((e) => hasWardJurisdiction(actor, e.wardId, db.wards));
     }
 
     if (filters.entityType && filters.entityType !== 'ALL') {
@@ -154,6 +156,16 @@ export class EntitiesRatesDuesService {
       throw new AppError(404, 'ENTITY_NOT_FOUND', `Entity ${id} was not found`);
     }
     assertCitizenEntityOwnership(actor, entity.id, entity.mobile);
+    if (
+      (actor.role === 'OFFICER' || actor.role === 'AGENT') &&
+      !hasWardJurisdiction(actor, entity.wardId, db.wards)
+    ) {
+      throw new AppError(
+        403,
+        'JURISDICTION_FORBIDDEN',
+        `Actor ${actor.loginIdentifier} does not have jurisdiction over Ward ${entity.wardId}`
+      );
+    }
     return entity;
   }
 
@@ -283,7 +295,10 @@ export class EntitiesRatesDuesService {
       if (!entity) {
         throw new AppError(404, 'ENTITY_NOT_FOUND', `Entity ${id} was not found`);
       }
-      if (!hasWardJurisdiction(actor, entity.wardId, db.wards)) {
+      if (
+        (actor.role === 'OFFICER' || actor.role === 'AGENT') &&
+        !hasWardJurisdiction(actor, entity.wardId, db.wards)
+      ) {
         throw new AppError(
           403,
           'JURISDICTION_FORBIDDEN',
@@ -458,6 +473,13 @@ export class EntitiesRatesDuesService {
       throw new AppError(404, 'ENTITY_NOT_FOUND', `Entity ${entityId} was not found`);
     }
     assertCitizenEntityOwnership(actor, entity.id, entity.mobile);
+    if (!hasWardJurisdiction(actor, entity.wardId, db.wards)) {
+      throw new AppError(
+        403,
+        'JURISDICTION_FORBIDDEN',
+        `Actor ${actor.loginIdentifier} does not have jurisdiction over Ward ${entity.wardId}`
+      );
+    }
 
     const entityDues = db.dues.filter((d) => d.entityId === entityId);
     let originalTotalPaise = 0;
@@ -642,6 +664,11 @@ export class EntitiesRatesDuesService {
     if (actor.role === 'CITIZEN') {
       const linked = actor.linkedEntityIds || [];
       list = list.filter((d) => linked.includes(d.entityId));
+    } else if (actor.role === 'OFFICER' || actor.role === 'AGENT') {
+      list = list.filter((d) => {
+        const entity = db.entities.find((e) => e.id === d.entityId);
+        return entity && hasWardJurisdiction(actor, entity.wardId, db.wards);
+      });
     }
 
     if (filters.entityId) {

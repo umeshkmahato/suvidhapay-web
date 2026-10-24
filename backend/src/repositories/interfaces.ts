@@ -295,7 +295,7 @@ export interface IImportRepository {
 
 /**
  * Repository & Unit-of-Work Abstraction (Section 3, 4, 15)
- * Designed so LokiJS repositories can be swapped for PostgreSQL transactional repositories
+ * Isolates PostgreSQL runtime storage from JSON test fixtures
  * without modifying any controller or service signature.
  */
 export interface IDataStore {
@@ -304,7 +304,7 @@ export interface IDataStore {
   readAll(): Promise<SuvidhaDataCollections>;
   /**
    * Executes a serialized read-modify-write unit of work.
-   * NOTE: In LokiJS development mode, this uses an in-process mutex and atomic disk save.
+   * NOTE: JSON test fixtures use an in-process mutex and per-file atomic rename.
    * In PostgreSQL mode, this maps to `BEGIN ... COMMIT / ROLLBACK`.
    */
   withTransaction<R>(

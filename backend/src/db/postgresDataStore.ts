@@ -33,12 +33,12 @@ export class PostgresDataStore implements IDataStore {
     if (options.pool) {
       this.pool = options.pool;
     } else if (options.connectionString) {
-      this.pool = new Pool({ connectionString: options.connectionString });
+      this.pool = new Pool({ ...options.poolConfig, connectionString: options.connectionString });
     } else {
       this.pool = new Pool(options.poolConfig || {});
     }
     this.autoMigrate = options.autoMigrate !== false;
-    this.autoSeed = options.autoSeed !== false;
+    this.autoSeed = options.autoSeed === true;
   }
 
   public getPool(): Pool {
@@ -81,7 +81,7 @@ export class PostgresDataStore implements IDataStore {
    * Reads all relational entities from PostgreSQL and constructs SuvidhaDataCollections.
    * Maps relational column naming (snake_case) to domain models (camelCase) with full type fidelity.
    */
-  public async readAll(): Promise<SuvidhaDataCollections> {
+  public async readAll(source: Pick<Pool, 'query'> = this.pool): Promise<SuvidhaDataCollections> {
     const [
       usersRes,
       sessionsRes,
@@ -106,28 +106,28 @@ export class PostgresDataStore implements IDataStore {
       idempotencyRes,
       settingsRes,
     ] = await Promise.all([
-      this.pool.query('SELECT * FROM system_users;'),
-      this.pool.query('SELECT * FROM refresh_sessions;'),
-      this.pool.query('SELECT * FROM password_reset_tokens;'),
-      this.pool.query('SELECT * FROM wards ORDER BY code ASC;'),
-      this.pool.query('SELECT * FROM zones ORDER BY code ASC;'),
-      this.pool.query('SELECT * FROM categories ORDER BY code ASC;'),
-      this.pool.query('SELECT * FROM rate_masters ORDER BY created_at DESC;'),
-      this.pool.query('SELECT * FROM municipal_entities ORDER BY id ASC;'),
-      this.pool.query('SELECT * FROM due_records ORDER BY due_date ASC;'),
-      this.pool.query('SELECT * FROM due_adjustments ORDER BY approved_at DESC;'),
-      this.pool.query('SELECT * FROM payment_records ORDER BY payment_date DESC;'),
-      this.pool.query('SELECT * FROM receipt_records ORDER BY issued_at DESC;'),
-      this.pool.query('SELECT * FROM daily_closings ORDER BY closing_date DESC;'),
-      this.pool.query('SELECT * FROM reconciliation_items ORDER BY date DESC;'),
-      this.pool.query('SELECT * FROM refund_disputes ORDER BY filed_at DESC;'),
-      this.pool.query('SELECT * FROM notification_logs ORDER BY timestamp DESC;'),
-      this.pool.query('SELECT * FROM notification_templates ORDER BY created_at ASC;'),
-      this.pool.query('SELECT * FROM gov_verifications ORDER BY requested_at DESC;'),
-      this.pool.query('SELECT * FROM audit_logs ORDER BY timestamp DESC;'),
-      this.pool.query('SELECT * FROM import_batches ORDER BY created_at DESC;'),
-      this.pool.query('SELECT * FROM idempotency_keys;'),
-      this.pool.query('SELECT * FROM system_settings WHERE id = $1;', ['SYSTEM_CONFIG']),
+      source.query('SELECT * FROM system_users;'),
+      source.query('SELECT * FROM refresh_sessions;'),
+      source.query('SELECT * FROM password_reset_tokens;'),
+      source.query('SELECT * FROM wards ORDER BY code ASC;'),
+      source.query('SELECT * FROM zones ORDER BY code ASC;'),
+      source.query('SELECT * FROM categories ORDER BY code ASC;'),
+      source.query('SELECT * FROM rate_masters ORDER BY created_at DESC;'),
+      source.query('SELECT * FROM municipal_entities ORDER BY id ASC;'),
+      source.query('SELECT * FROM due_records ORDER BY due_date ASC;'),
+      source.query('SELECT * FROM due_adjustments ORDER BY approved_at DESC;'),
+      source.query('SELECT * FROM payment_records ORDER BY payment_date DESC;'),
+      source.query('SELECT * FROM receipt_records ORDER BY issued_at DESC;'),
+      source.query('SELECT * FROM daily_closings ORDER BY closing_date DESC;'),
+      source.query('SELECT * FROM reconciliation_items ORDER BY date DESC;'),
+      source.query('SELECT * FROM refund_disputes ORDER BY filed_at DESC;'),
+      source.query('SELECT * FROM notification_logs ORDER BY timestamp DESC;'),
+      source.query('SELECT * FROM notification_templates ORDER BY created_at ASC;'),
+      source.query('SELECT * FROM gov_verifications ORDER BY requested_at DESC;'),
+      source.query('SELECT * FROM audit_logs ORDER BY timestamp DESC;'),
+      source.query('SELECT * FROM import_batches ORDER BY created_at DESC;'),
+      source.query('SELECT * FROM idempotency_keys;'),
+      source.query('SELECT * FROM system_settings WHERE id = $1;', ['SYSTEM_CONFIG']),
     ]);
 
     const users: BackendUserRecord[] = usersRes.rows.map((r) => ({
@@ -589,24 +589,55 @@ export class PostgresDataStore implements IDataStore {
     const client = await this.pool.connect();
     try {
       await client.query('BEGIN;');
+      await client.query('LOCK TABLE system_settings IN EXCLUSIVE MODE;');
 
       // Read current state
-      const collections = await this.readAll();
+      const collections = await this.readAll(client);
 
       // Execute business function
       const result = await fn(collections);
 
       // Synchronize modified collections back to relational tables
-      await this.syncCollectionsToPostgres(client, collections);
+      if (operationName.startsWith('AUTH_')) {
+        await this.syncAuthenticationState(client, collections);
+      } else {
+        await this.syncCollectionsToPostgres(client, collections);
+      }
 
       await client.query('COMMIT;');
       return result;
     } catch (err) {
       await client.query('ROLLBACK;');
-      console.error(`[PostgresDataStore] Transaction "${operationName}" failed and was rolled back!`, err);
+      console.error(JSON.stringify({ event: 'transaction_rollback', operation: operationName }));
       throw err;
     } finally {
       client.release();
+    }
+  }
+
+  private async syncAuthenticationState(client: PoolClient, db: SuvidhaDataCollections): Promise<void> {
+    for (const u of db.users) {
+      await client.query(`UPDATE system_users SET status=$2, last_login=$3, password_hash=$4,
+        force_password_change=$5, failed_login_attempts=$6, locked_until=$7 WHERE id=$1`,
+      [u.id, u.status, u.lastLogin, u.passwordHash, u.forcePasswordChange, u.failedLoginAttempts, u.lockedUntil]);
+    }
+    for (const s of db.sessions) {
+      await client.query(`INSERT INTO refresh_sessions
+        (jti,user_id,login_identifier,role,issued_at,expires_at,revoked_at,replaced_by_jti,ip_address,user_agent)
+        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) ON CONFLICT (jti) DO UPDATE SET
+        revoked_at=EXCLUDED.revoked_at,replaced_by_jti=EXCLUDED.replaced_by_jti`,
+      [s.jti,s.userId,s.loginIdentifier,s.role,s.issuedAt,s.expiresAt,s.revokedAt,s.replacedByJti,s.ipAddress,s.userAgent]);
+    }
+    for (const t of db.resetTokens) {
+      await client.query(`INSERT INTO password_reset_tokens (token,user_id,expires_at,used_at)
+        VALUES ($1,$2,$3,$4) ON CONFLICT (token) DO UPDATE SET used_at=EXCLUDED.used_at`,
+      [t.token,t.userId,t.expiresAt,t.usedAt]);
+    }
+    for (const a of db.auditLogs) {
+      await client.query(`INSERT INTO audit_logs
+        (id,timestamp,actor_name,actor_role,action,module,entity_type,entity_id,previous_value_summary,new_value_summary,ip_address,correlation_id)
+        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) ON CONFLICT (id) DO NOTHING`,
+      [a.id,a.timestamp,a.actorName,a.actorRole,a.action,a.module,a.entityType,a.entityId,a.previousValueSummary,a.newValueSummary,a.ipAddress,a.correlationId]);
     }
   }
 
@@ -711,6 +742,10 @@ export class PostgresDataStore implements IDataStore {
     // 3. Sync Payments
     for (const rawP of colls.payments) {
       const p = rawP as any;
+      const normalizedMethod = (p.paymentMethod || p.method || 'CASH');
+      const normalizedCollectorRole = (p.collectorRole || p.collectedByRole || 'CITIZEN');
+      const normalizedPaymentMethod = normalizedMethod === 'UPI_REFERENCE' ? 'UPI_MANUAL' : normalizedMethod === 'PAYMENT_GATEWAY' ? 'GATEWAY_ONLINE' : normalizedMethod;
+      const normalizedSettlementStatus = p.settlementStatus === 'SETTLED' ? 'SUCCESS' : p.settlementStatus || 'PENDING';
       await client.query(
         `INSERT INTO payment_records (
           id, entity_id, registration_number, entity_name, amount_inr, payment_method,
@@ -731,13 +766,13 @@ export class PostgresDataStore implements IDataStore {
           p.registrationNumber,
           p.entityName,
           p.amountInr,
-          p.paymentMethod,
-          p.settlementStatus,
+          normalizedPaymentMethod,
+          normalizedSettlementStatus,
           p.receiptId || null,
           p.transactionRef || null,
           p.upiUtr || null,
           p.collectedBy,
-          p.collectorRole,
+          normalizedCollectorRole,
           p.wardId,
           p.wardName,
           p.paymentDate,

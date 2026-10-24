@@ -1,4 +1,5 @@
 import fs from 'fs';
+import { generateDeterministicSeed } from '../db/seedData';
 import path from 'path';
 import {
   INITIAL_ZONES,
@@ -239,7 +240,7 @@ export class JsonFileDataStore implements IDataStore {
 
   public async resetToDeterministicSeed(): Promise<void> {
     this.ensureDir();
-    const seed = buildDeterministicSeed();
+    const seed = generateDeterministicSeed();
     await this.writeAllInternal(seed);
   }
 

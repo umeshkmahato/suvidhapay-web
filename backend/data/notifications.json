@@ -1,0 +1,64 @@
+[
+  {
+    "id": "NTF-901",
+    "timestamp": "10/10/2026 10:14:25",
+    "recipientName": "Ramesh Chandra Yadav",
+    "recipientMobile": "9811452310",
+    "channel": "SMS",
+    "eventType": "RECEIPT_GENERATED",
+    "templateId": "TPL_SMS_RCP_HI",
+    "status": "DELIVERED",
+    "retryCount": 0,
+    "correlationId": "corr-rcp-9081-sms"
+  },
+  {
+    "id": "NTF-902",
+    "timestamp": "10/10/2026 10:14:26",
+    "recipientName": "Ramesh Chandra Yadav",
+    "recipientMobile": "9811452310",
+    "channel": "WHATSAPP",
+    "eventType": "RECEIPT_PDF_DISPATCH",
+    "templateId": "TPL_WA_RCP_PDF",
+    "status": "DELIVERED",
+    "retryCount": 0,
+    "correlationId": "corr-rcp-9081-wa"
+  },
+  {
+    "id": "NTF-903",
+    "timestamp": "10/10/2026 09:32:16",
+    "recipientName": "Dinesh Pratap Chauhan",
+    "recipientMobile": "9899123400",
+    "channel": "SMS",
+    "eventType": "PAYMENT_SUCCESSFUL",
+    "templateId": "TPL_SMS_PAY_OK",
+    "status": "DELIVERED",
+    "retryCount": 0,
+    "correlationId": "corr-pay-9083-sms"
+  },
+  {
+    "id": "NTF-904",
+    "timestamp": "10/10/2026 08:45:12",
+    "recipientName": "Gurpreet Singh Gill",
+    "recipientMobile": "9818092341",
+    "channel": "SMS",
+    "eventType": "REGISTRATION_SUBMITTED",
+    "templateId": "TPL_SMS_REG_SUB",
+    "status": "RETRYING",
+    "retryCount": 2,
+    "failureReason": "DLT Operator Scrubbing Latency (Error 412)",
+    "correlationId": "corr-reg-1004-sms"
+  },
+  {
+    "id": "NTF-905",
+    "timestamp": "09/10/2026 18:11:00",
+    "recipientName": "Rajeshwari Verma (RO)",
+    "recipientMobile": "9811223344",
+    "channel": "IN_APP",
+    "eventType": "DAILY_CLOSING_DISCREPANCY",
+    "templateId": "TPL_SYS_VAR_ALERT",
+    "status": "FAILED",
+    "retryCount": 3,
+    "failureReason": "Push Endpoint Token Expired",
+    "correlationId": "corr-cls-ag108-alert"
+  }
+]

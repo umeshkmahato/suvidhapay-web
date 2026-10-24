@@ -1,0 +1,108 @@
+[
+  {
+    "id": "PAY-2026-9081",
+    "orderId": "ORD_RZP_99281741",
+    "entityId": "ENT-1001",
+    "entityName": "Ramesh Chandra Yadav",
+    "registrationNumber": "UP-16-AB-1234",
+    "wardName": "Ward 12 — Atta Market & Sector 18",
+    "categoryName": "Auto-Rickshaw (Three-Wheeler)",
+    "amountInr": 500,
+    "method": "CASH",
+    "referenceNumber": "CASH-AGENT-AG01-1010",
+    "processingStatus": "RECEIPT_GENERATED",
+    "settlementStatus": "SETTLED",
+    "receiptId": "RCP-01",
+    "receiptNumber": "SUP/2026/000012345",
+    "collectedBy": "Suresh Kumar Sharma (AG-104)",
+    "collectedByRole": "AGENT",
+    "timestamp": "10/10/2026 10:14:22",
+    "verifiedBy": "Server Ledger Engine",
+    "verifiedAt": "10/10/2026 10:14:23",
+    "notes": "Atomic allocation across historical & current dues.",
+    "allocations": [
+      {
+        "dueId": "DUE-2026-101",
+        "periodLabel": "Feb 2026 Arrears",
+        "feeType": "Municipal Stand Fee",
+        "dueOriginalAmount": 400,
+        "allocatedAmount": 200,
+        "remainingDueBalance": 0
+      },
+      {
+        "dueId": "DUE-2026-102",
+        "periodLabel": "Mar 2026 Arrears",
+        "feeType": "Municipal Stand Fee",
+        "dueOriginalAmount": 400,
+        "allocatedAmount": 200,
+        "remainingDueBalance": 0
+      },
+      {
+        "dueId": "DUE-2026-103",
+        "periodLabel": "Apr 2026 Partial",
+        "feeType": "Municipal Stand Fee",
+        "dueOriginalAmount": 450,
+        "allocatedAmount": 100,
+        "remainingDueBalance": 250
+      }
+    ]
+  },
+  {
+    "id": "PAY-2026-9082",
+    "entityId": "ENT-1002",
+    "entityName": "Mohammad Tariq Ansari",
+    "registrationNumber": "UP-16-ER-7781",
+    "wardName": "Ward 14 — Botanical Transit Hub",
+    "categoryName": "E-Rickshaw (Battery Operated)",
+    "amountInr": 300,
+    "method": "UPI_REFERENCE",
+    "referenceNumber": "UTR-428419002814",
+    "processingStatus": "PENDING",
+    "settlementStatus": "UNVERIFIED_MANUAL_REF",
+    "collectedBy": "Suresh Kumar Sharma (AG-104)",
+    "collectedByRole": "AGENT",
+    "timestamp": "10/10/2026 11:05:49",
+    "notes": "Manual UPI UTR entered by field agent. Awaiting Officer bank statement / gateway match before marking PAID.",
+    "allocations": [
+      {
+        "dueId": "DUE-2026-104",
+        "periodLabel": "Sep 2026",
+        "feeType": "Green Transit Corridor Fee",
+        "dueOriginalAmount": 300,
+        "allocatedAmount": 300,
+        "remainingDueBalance": 300
+      }
+    ]
+  },
+  {
+    "id": "PAY-2026-9083",
+    "orderId": "order_Pf992kLm81xQz",
+    "entityId": "ENT-1006",
+    "entityName": "Dinesh Pratap Chauhan",
+    "registrationNumber": "UP-14-BT-9012",
+    "wardName": "Ward 04 — Old Bus Stand & Railway Rd",
+    "categoryName": "Auto-Rickshaw (Three-Wheeler)",
+    "amountInr": 450,
+    "method": "PAYMENT_GATEWAY",
+    "referenceNumber": "pay_Pf998zYq109Lm",
+    "processingStatus": "NOTIFIED",
+    "settlementStatus": "SETTLED",
+    "receiptId": "RCP-02",
+    "receiptNumber": "SUP/2026/000012346",
+    "collectedBy": "Citizen Self-Service Portal",
+    "collectedByRole": "CITIZEN",
+    "timestamp": "10/10/2026 09:32:10",
+    "verifiedBy": "Razorpay Webhook Signature HMAC-SHA256",
+    "verifiedAt": "10/10/2026 09:32:14",
+    "allocations": [
+      {
+        "dueId": "DUE-2026-107",
+        "periodLabel": "Oct 2026",
+        "feeType": "Municipal Stand Fee",
+        "dueOriginalAmount": 450,
+        "allocatedAmount": 450,
+        "remainingDueBalance": 0
+      }
+    ]
+  }
+]

@@ -11,8 +11,8 @@ RUN apk add --no-cache curl
 WORKDIR /app
 
 # Install dependencies
-COPY package.json ./
-RUN npm install --ignore-scripts
+COPY package.json package-lock.json ./
+RUN npm ci --ignore-scripts
 
 # Copy application source, migrations, and configurations
 COPY . ./
@@ -36,4 +36,4 @@ HEALTHCHECK --interval=10s --timeout=5s --start-period=10s --retries=5 \
   CMD curl -f http://127.0.0.1:3000/api/v1/health/live || exit 1
 
 # Start production server (applies migrations and initializes database on startup)
-CMD ["npx", "tsx", "src/server.ts"]
+CMD ["npm", "start"]

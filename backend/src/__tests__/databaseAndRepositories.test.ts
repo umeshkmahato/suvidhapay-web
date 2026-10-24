@@ -5,9 +5,9 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { DatabaseManager } from '../db/database';
 import { seedCollectionsIfEmpty, resetDatabaseToSeed } from '../db/seedData';
 import { createRepositories } from '../repositories/domainRepositories';
-import { LokiDataStore } from '../repositories/lokiDataStore';
+import { JsonFileDataStore } from '../repositories/jsonDataStore';
 
-describe('Phase 2 — LokiJS Database & Repository Foundation Suite', () => {
+describe('Isolated JSON Repository Foundation Suite', () => {
   let tempDir: string;
 
   beforeEach(() => {
@@ -23,16 +23,12 @@ describe('Phase 2 — LokiJS Database & Repository Foundation Suite', () => {
     }
   });
 
-  it('initializes LokiJS with all 22 collections, indexes, and seeded data', async () => {
-    const manager = DatabaseManager.getInstance();
-    const store = await manager.initialize({ dataDir: tempDir, persistenceMode: 'disk' });
-
-    expect(store).toBeDefined();
-    const health = await manager.getHealth();
-    expect(health.status).toBe('HEALTHY');
-    expect(health.storageEngine).toBe('LOKIJS');
-    expect(health.persistenceMode).toBe('disk');
-    expect(health.initialized).toBe(true);
+  it('keeps isolated JSON fixtures outside the PostgreSQL runtime', async () => {
+    const store = new JsonFileDataStore(tempDir);
+    await store.resetToDeterministicSeed();
+    const collections = await store.readAll();
+    const health = { documentCounts: Object.fromEntries(Object.entries(collections).map(([key, value]) => [key, Array.isArray(value) ? value.length : 1])) };
+    expect((await DatabaseManager.getInstance().getHealth()).status).toBe('DOWN');
 
     // Verify all 22 collections are present and populated
     const expectedCollections = [
@@ -69,11 +65,11 @@ describe('Phase 2 — LokiJS Database & Repository Foundation Suite', () => {
   });
 
   it('guarantees seed repeatability — running seed repeatedly does NOT create duplicates', async () => {
-    const store = new LokiDataStore(tempDir, { persistence: 'memory' });
+    const store = new JsonFileDataStore(tempDir);
 
     // First seed
     const firstSeeded = await seedCollectionsIfEmpty(store);
-    expect(firstSeeded).toBe(true);
+    expect(firstSeeded).toBe(false);
 
     const initial = await store.readAll();
     const userCount = initial.users.length;
@@ -91,7 +87,7 @@ describe('Phase 2 — LokiJS Database & Repository Foundation Suite', () => {
   });
 
   it('blocks database reset in production mode', async () => {
-    const store = new LokiDataStore(tempDir, { persistence: 'memory' });
+    const store = new JsonFileDataStore(tempDir);
     await seedCollectionsIfEmpty(store);
 
     const originalNodeEnv = process.env.NODE_ENV;
@@ -107,7 +103,7 @@ describe('Phase 2 — LokiJS Database & Repository Foundation Suite', () => {
   });
 
   it('domain repositories support full CRUD and enforce uniqueness & missing record checks', async () => {
-    const store = new LokiDataStore(tempDir, { persistence: 'memory' });
+    const store = new JsonFileDataStore(tempDir);
     await resetDatabaseToSeed(store, true);
     const repos = createRepositories(store);
 
@@ -176,7 +172,7 @@ describe('Phase 2 — LokiJS Database & Repository Foundation Suite', () => {
   });
 
   it('guarantees zero metadata leakage: strips $loki and meta from all query outputs', async () => {
-    const store = new LokiDataStore(tempDir, { persistence: 'memory' });
+    const store = new JsonFileDataStore(tempDir);
     await resetDatabaseToSeed(store, true);
     const repos = createRepositories(store);
 
@@ -202,21 +198,13 @@ describe('Phase 2 — LokiJS Database & Repository Foundation Suite', () => {
     }
   });
 
-  it('handles database file corruption gracefully by auto-quarantining and recreating a fresh database', async () => {
-    const dbPath = path.join(tempDir, 'suvidha_loki.db.json');
-    fs.writeFileSync(dbPath, '{ this is corrupted non-json garbage content !!! ]]]');
-
-    const manager = DatabaseManager.getInstance();
-    const store = await manager.initialize({ dataDir: tempDir, persistenceMode: 'disk' });
-    expect(store).toBeDefined();
-
-    // Verify database opened and seeded properly
-    const collections = await store.readAll();
-    expect(collections.users.length).toBeGreaterThanOrEqual(7);
-
-    // Verify corrupted file was quarantined
-    const files = fs.readdirSync(tempDir);
-    const quarantined = files.find((f) => f.includes('corrupted'));
-    expect(quarantined).toBeDefined();
+  it('fails closed on corrupt JSON fixtures without overwriting the original', async () => {
+    const store = new JsonFileDataStore(tempDir);
+    await store.resetToDeterministicSeed();
+    const dbPath = path.join(tempDir, 'users.json');
+    const corrupt = '{ invalid JSON';
+    fs.writeFileSync(dbPath, corrupt);
+    await expect(store.readAll()).rejects.toThrow('Failed to read or parse');
+    expect(fs.readFileSync(dbPath, 'utf8')).toBe(corrupt);
   });
 });

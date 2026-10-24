@@ -2,7 +2,7 @@ import crypto from 'crypto';
 import { Request, Response, NextFunction } from 'express';
 import { UserRole } from '../types/suvidha';
 
-export type DatabaseEngine = 'POSTGRES' | 'LOKIJS';
+export type DatabaseEngine = 'POSTGRES';
 
 export interface AppConfig {
   port: number;
@@ -21,6 +21,7 @@ export interface AppConfig {
   jwtRefreshExpiresSec: number;
   corsOrigin: string;
   allowAdvanceOverpayment: boolean;
+  demoMode: boolean;
 }
 
 export function loadConfig(): AppConfig {
@@ -30,29 +31,34 @@ export function loadConfig(): AppConfig {
     process.env.DATABASE_TYPE ||
     ''
   ).toUpperCase();
-  const hasPgEnv = Boolean(
-    process.env.DATABASE_URL ||
-    process.env.PGHOST ||
-    process.env.POSTGRES_HOST
-  );
-  const databaseEngine: DatabaseEngine =
-    explicitEngine === 'LOKIJS'
-      ? 'LOKIJS'
-      : explicitEngine === 'POSTGRES' || hasPgEnv
-        ? 'POSTGRES'
-        : 'POSTGRES';
+  if (explicitEngine && explicitEngine !== 'POSTGRES') {
+    throw new Error('Only DATABASE_ENGINE=POSTGRES is supported; legacy stores require an explicit data migration');
+  }
+  const nodeEnv = process.env.NODE_ENV || 'development';
+  const demoMode = nodeEnv === 'test' || process.env.SUVIDHAPAY_DEMO_MODE === 'true';
+  if (nodeEnv === 'production') {
+    if (demoMode) throw new Error('Demo mode is forbidden in production');
+    const secrets = [process.env.JWT_ACCESS_SECRET, process.env.JWT_REFRESH_SECRET];
+    if (secrets.some((s) => !s || s.length < 32 || /dev_|change|example|placeholder|replace_with/i.test(s)) || secrets[0] === secrets[1]) {
+      throw new Error('Production requires distinct non-placeholder JWT secrets of at least 32 characters');
+    }
+    if (!process.env.CORS_ORIGIN || process.env.CORS_ORIGIN === '*') {
+      throw new Error('Production requires an explicit CORS_ORIGIN');
+    }
+  }
 
   return {
-    port: 3000,
-    nodeEnv: process.env.NODE_ENV || 'development',
+    port: Number(process.env.PORT || 3000),
+    nodeEnv,
+    demoMode,
     dataDir: process.env.SUVIDHAPAY_DATA_DIR || './data',
-    databaseEngine,
+    databaseEngine: 'POSTGRES',
     databaseUrl: process.env.DATABASE_URL,
     pgHost: process.env.PGHOST || process.env.POSTGRES_HOST || 'postgres',
     pgPort: Number(process.env.PGPORT || process.env.POSTGRES_PORT || 5432),
     pgDatabase: process.env.PGDATABASE || process.env.POSTGRES_DB || 'suvidhapay',
     pgUser: process.env.PGUSER || process.env.POSTGRES_USER || 'suvidhapay',
-    pgPassword: process.env.PGPASSWORD || process.env.POSTGRES_PASSWORD || 'suvidhapay_secret_2026',
+    pgPassword: process.env.PGPASSWORD || process.env.POSTGRES_PASSWORD,
     jwtAccessSecret:
       process.env.JWT_ACCESS_SECRET ||
       'dev_suvidhapay_jwt_access_secret_change_in_prod',
@@ -311,7 +317,7 @@ export function correlationAndSecurityHeaders(
 ): void {
   const incomingId = req.header('x-correlation-id');
   const correlationId =
-    incomingId && incomingId.trim().length > 0
+    incomingId && /^[a-zA-Z0-9_-]{1,64}$/.test(incomingId)
       ? incomingId.trim()
       : `corr-${crypto.randomUUID().slice(0, 12)}`;
   res.locals.correlationId = correlationId;

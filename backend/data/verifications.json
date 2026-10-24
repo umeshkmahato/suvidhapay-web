@@ -1,0 +1,82 @@
+[
+  {
+    "id": "VER-2026-001",
+    "entityId": "ENT-1001",
+    "registrationNumber": "UP-16-AB-1234",
+    "provider": "VAHAN_MOCK",
+    "status": "VERIFIED",
+    "referenceNumber": "VAHAN-UP16-8841209",
+    "ownerNameMatched": true,
+    "vehicleClass": "Bajaj RE Compact CNG",
+    "requestedBy": "SYSTEM_AUTO",
+    "requestedAt": "2026-10-08T09:00:00.000Z",
+    "updatedAt": "2026-10-10T05:30:00.000Z",
+    "notes": "Permit & fitness verified against regional transport portal."
+  },
+  {
+    "id": "VER-2026-002",
+    "entityId": "ENT-1002",
+    "registrationNumber": "UP-16-ER-7781",
+    "provider": "VAHAN_MOCK",
+    "status": "VERIFIED",
+    "referenceNumber": "VAHAN-UP16-9920144",
+    "ownerNameMatched": true,
+    "vehicleClass": "Mayuri Pro Electric 3W",
+    "requestedBy": "SYSTEM_AUTO",
+    "requestedAt": "2026-10-08T09:00:00.000Z",
+    "updatedAt": "2026-10-10T05:30:00.000Z"
+  },
+  {
+    "id": "VER-2026-003",
+    "entityId": "ENT-1003",
+    "registrationNumber": "VND-NMC-2026-0041",
+    "provider": "SVANIDHI_MOCK",
+    "status": "VERIFIED",
+    "referenceNumber": "SVANIDHI-UP-441092",
+    "ownerNameMatched": true,
+    "vehicleClass": "Stationary Kiosk / Tehbazari Vendor",
+    "requestedBy": "SYSTEM_AUTO",
+    "requestedAt": "2026-10-08T09:00:00.000Z",
+    "updatedAt": "2026-10-10T05:30:00.000Z"
+  },
+  {
+    "id": "VER-2026-004",
+    "entityId": "ENT-1004",
+    "registrationNumber": "UP-16-TC-4092",
+    "provider": "VAHAN_MOCK",
+    "status": "SERVICE_UNAVAILABLE",
+    "referenceNumber": "VAHAN-TIMEOUT-503",
+    "ownerNameMatched": false,
+    "vehicleClass": "Tata Ace Gold Diesel",
+    "requestedBy": "SYSTEM_AUTO",
+    "requestedAt": "2026-10-08T09:00:00.000Z",
+    "updatedAt": "2026-10-10T05:30:00.000Z",
+    "notes": "External Vahan API timed out during registration. Pending manual RC inspection or retry."
+  },
+  {
+    "id": "VER-2026-005",
+    "entityId": "ENT-1005",
+    "registrationNumber": "VND-NMC-2026-0089",
+    "provider": "SVANIDHI_MOCK",
+    "status": "MANUAL_REVIEW",
+    "referenceNumber": "MUNICIPAL-SURVEY-2026",
+    "ownerNameMatched": false,
+    "vehicleClass": "Street Hawker / Pushcart (Rehri)",
+    "requestedBy": "SYSTEM_AUTO",
+    "requestedAt": "2026-10-08T09:00:00.000Z",
+    "updatedAt": "2026-10-10T05:30:00.000Z"
+  },
+  {
+    "id": "VER-2026-006",
+    "entityId": "ENT-1006",
+    "registrationNumber": "UP-14-BT-9012",
+    "provider": "VAHAN_MOCK",
+    "status": "VERIFIED",
+    "referenceNumber": "VAHAN-UP14-331902",
+    "ownerNameMatched": true,
+    "vehicleClass": "Piaggio Ape City",
+    "requestedBy": "SYSTEM_AUTO",
+    "requestedAt": "2026-10-08T09:00:00.000Z",
+    "updatedAt": "2026-10-10T05:30:00.000Z"
+  }
+]

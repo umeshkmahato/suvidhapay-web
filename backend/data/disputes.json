@@ -1,0 +1,33 @@
+[
+  {
+    "id": "DSP-2026-041",
+    "recordType": "DISPUTE",
+    "paymentId": "PAY-2026-8810",
+    "receiptNumber": "SUP/2026/000011980",
+    "entityId": "ENT-1003",
+    "entityName": "Smt. Savitri Devi Kushwaha",
+    "registrationNumber": "VND-NMC-2026-0041",
+    "amountInr": 600,
+    "reasonCode": "DUPLICATE_CHARGE_PERIOD",
+    "description": "Vendor claims August 2026 Tehbazari fee was charged despite approved medical closure.",
+    "requestedBy": "Smt. Savitri Devi Kushwaha (Citizen Portal)",
+    "requestedAt": "09/10/2026 14:20",
+    "status": "UNDER_REVIEW",
+    "reviewedBy": "Rajeshwari Verma (RO)"
+  },
+  {
+    "id": "REV-2026-012",
+    "recordType": "REVERSAL",
+    "paymentId": "PAY-2026-9011",
+    "receiptNumber": "SUP/2026/000012301",
+    "entityId": "ENT-1002",
+    "entityName": "Mohammad Tariq Ansari",
+    "registrationNumber": "UP-16-ER-7781",
+    "amountInr": 300,
+    "reasonCode": "WRONG_VEHICLE_SELECTED",
+    "description": "Agent selected UP-16-ER-7781 instead of UP-16-ER-7789 during peak stand hour.",
+    "requestedBy": "Manoj Kumar Tiwari (AG-108)",
+    "requestedAt": "10/10/2026 12:15",
+    "status": "OPEN"
+  }
+]
