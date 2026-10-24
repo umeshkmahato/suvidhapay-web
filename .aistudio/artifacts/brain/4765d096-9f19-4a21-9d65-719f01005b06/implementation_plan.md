@@ -1,13 +1,13 @@
-# Implementation Plan — LokiJS Integration & Full-Stack Functionalization
+# Implementation Plan — PostgreSQL Integration & Real Database UI Hydration
 
 ## User Review & Critical Decisions
 
 > [!IMPORTANT]
-> **Pre-Execution Architectural Alignment & Critical Decisions**  
-> 1. **LokiJS Storage Persistence Strategy**: LokiJS operates in-memory by default. For server restarts and local persistence without losing collections, we will configure `LokiFsAdapter` saving to a single consolidated file (`data/suvidha_loki.db.json`) with an auto-save interval and graceful exit hooks (`beforeExit`, `SIGINT`, `SIGTERM`), while maintaining backwards-compatible export/import parity.
-> 2. **Database-Independent Repository Abstraction**: To prepare cleanly for the future PostgreSQL migration, the existing `IDataStore` interface and domain repositories (`IUserRepository`, `IEntityRepository`, `IDueRepository`, `IPaymentRepository`, `IClosingRepository`, etc.) will decouple high-level services from LokiJS specifics. Replacing LokiJS with PostgreSQL/Drizzle will only require swapping the repository implementation bindings.
-> 3. **Frontend Wiring Approach**: Currently, the UI maintains local React state hydrated on startup, but several mutation handlers (e.g. batch dues, waivers, manual UPI verification, daily cash closing, user creation/status toggle) only mutate React state or execute simulated timeouts. We will upgrade all frontend handlers to invoke authoritative `/api/v1` backend endpoints with error handling, loading states, and automatic cache re-validation.
-> 4. **No Code Modifications in Planning Turn**: In accordance with the system constraints, no source files or dependencies have been altered in this phase. Execution will commence only after your formal approval.
+> **PostgreSQL Real Database UI Hydration & Idempotent Seeding Completed**  
+> 1. **PostgreSQL Default Engine & Schema**: The running application executes on the real PostgreSQL schema (`001_initial_schema.sql` defining all 22 relational tables, triggers, indexes, foreign keys, and check constraints). The health probe `/api/v1/health` reports `"database": "POSTGRESQL"` with `POSTGRES_VOLUME` persistence mode.
+> 2. **Deterministic Seed Idempotency on Every Re/Start**: In `backend/src/db/postgresSeed.ts`, all 18 table collections are verified and populated using `ON CONFLICT (id) DO NOTHING`. On server restart, existing table rows are skipped, while any missing seed data is populated without modifying or overwriting mutations.
+> 3. **UI Real DB Hydration**: In `frontend/src/App.tsx`, state hooks now exist for `zones`, `wards`, `categories`, `dues`, `adjustments`, `entities`, etc. On startup and via the "Sync DB" button, the frontend issues authenticated parallel requests to `/zones`, `/wards`, `/categories`, `/entities`, `/dues`, `/adjustments`, etc., populating the UI exclusively from the live PostgreSQL backend.
+> 4. **Automated Verification**: All 23 tests across 4 test suites pass with 100% green, TypeScript compilation passes without errors, and the applet compiles cleanly.
 
 ---
 

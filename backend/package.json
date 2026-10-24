@@ -1,0 +1,35 @@
+{
+  "name": "suvidhapay-backend",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx src/server.ts",
+    "start": "node dist/server.js",
+    "build": "tsc",
+    "test": "vitest run",
+    "lint": "tsc --noEmit",
+    "seed": "tsx src/scripts/seedCli.ts seed",
+    "reset": "tsx src/scripts/seedCli.ts reset"
+  },
+  "dependencies": {
+    "dotenv": "^17.2.3",
+    "express": "^4.21.2",
+    "lokijs": "^1.5.12",
+    "pg": "^8.23.1",
+    "pg-mem": "^3.0.14",
+    "zod": "^4.6.5"
+  },
+  "devDependencies": {
+    "@types/express": "^4.17.21",
+    "@types/lokijs": "^1.5.14",
+    "@types/node": "^22.14.0",
+    "@types/pg": "^8.23.1",
+    "@types/supertest": "^7.2.1",
+    "pg-mem": "^3.0.14",
+    "supertest": "^7.3.1",
+    "tsx": "^4.21.0",
+    "typescript": "^7.0.2",
+    "vitest": "^5.0.3"
+  }
+}

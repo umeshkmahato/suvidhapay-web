@@ -3,16 +3,25 @@
   "private": true,
   "version": "0.0.0",
   "type": "module",
+  "workspaces": [
+    "frontend",
+    "backend"
+  ],
   "scripts": {
     "dev": "tsx server.ts",
+    "dev:backend": "npm run dev --workspace=backend",
+    "dev:frontend": "npm run dev --workspace=frontend",
     "start": "node server.ts",
-    "build": "vite build",
-    "preview": "vite preview",
-    "clean": "rm -rf dist server.js",
-    "lint": "tsc --noEmit",
-    "seed": "tsx src/server/scripts/seedCli.ts seed",
-    "reset": "tsx src/server/scripts/seedCli.ts reset",
-    "test": "vitest run"
+    "build": "npm run build --workspace=frontend",
+    "build:frontend": "npm run build --workspace=frontend",
+    "build:backend": "npm run build --workspace=backend",
+    "preview": "npm run preview --workspace=frontend",
+    "clean": "rm -rf dist server.js frontend/dist backend/dist",
+    "lint": "npm run lint --workspace=frontend && npm run lint --workspace=backend",
+    "seed": "tsx backend/src/scripts/seedCli.ts seed",
+    "reset": "tsx backend/src/scripts/seedCli.ts reset",
+    "test": "vitest run --dir backend/src/__tests__",
+    "test:backend": "npm run test --workspace=backend"
   },
   "dependencies": {
     "@google/genai": "^2.4.0",
@@ -24,6 +33,7 @@
     "lucide-react": "^0.546.0",
     "motion": "^12.23.24",
     "pg": "^8.23.1",
+    "pg-mem": "^3.0.14",
     "react": "^19.0.1",
     "react-dom": "^19.0.1",
     "vite": "^8.3.0",

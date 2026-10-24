@@ -35,8 +35,8 @@ services:
   # --------------------------------------------------------------------------
   backend:
     build:
-      context: .
-      dockerfile: Dockerfile.backend
+      context: ./backend
+      dockerfile: Dockerfile
     container_name: suvidhapay-backend
     restart: unless-stopped
     depends_on:
@@ -74,8 +74,8 @@ services:
   # --------------------------------------------------------------------------
   frontend:
     build:
-      context: .
-      dockerfile: Dockerfile.frontend
+      context: ./frontend
+      dockerfile: Dockerfile
       args:
         VITE_API_URL: ""
     container_name: suvidhapay-frontend

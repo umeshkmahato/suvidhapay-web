@@ -113,63 +113,63 @@ SuvidhaPay provides four specialized role consoles accessible via the top-bar ro
 ## 📂 Repository Structure
 
 ```text
+suwidha-pay/
+├── frontend/                             # Independent React 19 Frontend Application
+│   ├── src/
+│   │   ├── components/                   # Admin, Officer, Field Agent & Citizen UI modules
+│   │   │   ├── AdminDashboardAndEntities.tsx
+│   │   │   ├── AdminDuesPaymentsReceipts.tsx
+│   │   │   ├── AdminGovernanceAndOps.tsx
+│   │   │   ├── AgentAndCitizenShells.tsx
+│   │   │   └── SharedModals.tsx
+│   │   ├── services/                     # Frontend API client communicating with /api/v1
+│   │   │   └── apiClient.ts
+│   │   ├── data/                         # Mock baseline data for client preview & offline fallbacks
+│   │   ├── types/                        # Universal domain types, enums, and interfaces
+│   │   ├── index.css                     # Tailwind CSS v4 directives & typography
+│   │   ├── App.tsx                       # Master civic dashboard container & state sync
+│   │   └── main.tsx                      # Frontend browser entry point
+│   ├── index.html                        # HTML entry point with civic branding
+│   ├── package.json                      # Frontend dependencies (React 19, Tailwind CSS v4, Lucide)
+│   ├── tsconfig.json                     # Frontend TypeScript compiler options
+│   ├── vite.config.ts                    # Vite build configuration with alias '@' -> './src'
+│   ├── nginx.conf                        # Production Nginx reverse-proxy & SPA routing
+│   ├── Dockerfile                        # Multi-stage Docker build for frontend (Node build -> Nginx)
+│   └── .dockerignore                     # Frontend build context exclusions
+│
+├── backend/                              # Independent Node.js & Express REST Backend
+│   ├── src/
+│   │   ├── app.ts                        # Express application instance, CORS, helmet, routes wiring
+│   │   ├── server.ts                     # Standalone backend server entry point (port 3000)
+│   │   ├── infra/                        # Integer paise Money utility, scrypt hashing, JWT tokens
+│   │   ├── schemas/                      # Zod validation schemas for all requests
+│   │   ├── repositories/                 # Repository layer (LokiJS & PostgreSQL unified IDataStore)
+│   │   ├── services/                     # Civic domain services (Auth, Entities, Dues, Payments, Reports)
+│   │   ├── middleware/                   # JWT authentication, RBAC, and ward jurisdiction checks
+│   │   ├── adapters/                     # Mock adapters (Payment Gateway, DLT SMS/WhatsApp, Vahan/SVANidhi)
+│   │   ├── db/
+│   │   │   ├── database.ts               # Database manager (PostgreSQL with resilient LokiJS fallback)
+│   │   │   ├── postgresDataStore.ts      # PostgreSQL IDataStore implementation
+│   │   │   ├── postgresSeed.ts           # Deterministic PostgreSQL municipal seeder
+│   │   │   └── migrations/
+│   │   │       ├── 001_initial_schema.sql # Authoritative 16-table PostgreSQL DDL schema
+│   │   │       └── migrator.ts           # Automated SQL migration runner & tracking
+│   │   ├── scripts/
+│   │   │   └── seedCli.ts                # Command-line seed and reset CLI utility
+│   │   ├── openapi/                      # OpenAPI 3.1 schema specification
+│   │   ├── docs/                         # PostgreSQL migration plan and architecture guides
+│   │   └── __tests__/                    # Vitest & Supertest integration and migration test suites
+│   ├── package.json                      # Backend dependencies (Express, pg, LokiJS, Zod, Vitest)
+│   ├── tsconfig.json                     # Backend TypeScript compiler options
+│   ├── Dockerfile                        # Production Node 22 backend container with health checks
+│   └── .dockerignore                     # Backend build context exclusions
+│
+├── docker-compose.yml                    # Multi-container orchestration (Frontend, Backend, PostgreSQL)
 ├── .env.example                          # Environment variable configuration template
-├── README.md                             # System overview, architecture, and developer guide
-├── package.json                          # Scripts, full-stack dependencies, and test tooling
-├── server.ts                             # Full-stack Node.js server (Express API + Vite middleware)
-├── vite.config.ts                        # Vite bundler configuration with Tailwind CSS v4
-├── tsconfig.json                         # Strict TypeScript configuration
-├── data/                                 # Persistent JSON development database (seeded automatically)
-│   ├── users.json                        # Scrypt credentials, roles, and ward jurisdictions
-│   ├── entities.json                     # Registered vehicles, vendor stalls, and owners
-│   ├── dues.json                         # Due ledger records and adjustment histories
-│   ├── payments.json                     # Payment transactions (Cash, UPI, Gateway)
-│   ├── receipts.json                     # Server-issued authoritative receipts
-│   ├── closings.json                     # Daily agent cash closing records
-│   ├── reconciliation.json              # Bank reconciliation statements
-│   └── audit_logs.json                   # Append-only immutable system audit trail
-├── src/
-│   ├── main.tsx                          # React entry point
-│   ├── App.tsx                           # Master application container and live backend state sync
-│   ├── index.css                         # Tailwind CSS v4 directives and typography
-│   ├── types/
-│   │   └── suvidha.ts                    # Universal domain types, enums, and interfaces
-│   ├── components/
-│   │   ├── AdminDashboardAndEntities.tsx # Admin KPI dashboard and entity registry views
-│   │   ├── AdminDuesPaymentsReceipts.tsx # Dues engine, payment ledgers, and reconciliation
-│   │   ├── AdminGovernanceAndOps.tsx     # Rate master, user management, and import wizard
-│   │   ├── AgentAndCitizenShells.tsx     # Field Agent mobile app & Citizen self-service portal
-│   │   └── SharedModals.tsx              # Receipt printer, public verification, and auth modals
-│   ├── data/
-│   │   └── mockSuvidhaData.ts            # Deterministic Indian municipal seed dataset
-│   ├── services/
-│   │   └── apiClient.ts                  # Frontend API client communicating with /api/v1
-│   └── server/
-│       ├── app.ts                        # Express REST API application and route wiring
-│       ├── infra/
-│       │   └── core.ts                   # Money utility (integer paise), JWT, scrypt, errors
-│       ├── schemas/
-│       │   └── validationSchemas.ts      # Zod validation schemas for all requests
-│       ├── repositories/
-│       │   ├── interfaces.ts             # DataStore repository abstractions
-│       │   └── jsonDataStore.ts          # JSON file implementation with atomic file renaming
-│       ├── adapters/
-│       │   └── mockAdapters.ts           # Payment Gateway, Notification, and Vahan adapters
-│       ├── middleware/
-│       │   └── authMiddleware.ts         # JWT authentication, RBAC, and ward jurisdiction checks
-│       ├── services/
-│       │   ├── authAndUsersService.ts    # Authentication, password resets, user CRUD
-│       │   ├── entitiesRatesDuesService.ts # Registration, Rate Master, and Dues engine
-│       │   ├── paymentsReceiptsService.ts # Cash/UPI collection, receipts, and refund logic
-│       │   └── operationsAndReportsService.ts # Closings, reconciliation, reports, imports
-│       ├── openapi/
-│       │   └── spec.ts                   # OpenAPI 3.1 schema specification
-│       ├── scripts/
-│       │   └── seedCli.ts                # Command-line seed and reset utility
-│       ├── docs/
-│       │   └── POSTGRES_MIGRATION_PLAN.md # Complete PostgreSQL 16+ production migration guide
-│       └── __tests__/
-│           └── suvidhaApi.test.ts        # Comprehensive Supertest + Vitest test suite
+├── .gitignore                            # Git ignore patterns
+├── package.json                          # Monorepo workspaces manifest ("workspaces": ["frontend", "backend"])
+├── server.ts                             # Development server bridging Express backend & Vite frontend
+└── README.md                             # Authoritative civic ERP and operational documentation
 ```
 
 ---
@@ -179,38 +179,90 @@ SuvidhaPay provides four specialized role consoles accessible via the top-bar ro
 ### Prerequisites
 - **Node.js**: `v20.x` or `v22.x` (LTS recommended)
 - **npm**: `v10.x` or higher
+- **Docker & Docker Compose**: (Optional, for containerized multi-service deployment)
 
-### 1. Installation
-Clone the repository and install dependencies:
+---
+
+### Independent Application Development
+
+Each application can be developed, built, and tested independently from within its own directory:
+
+#### 1. Frontend Development (`frontend/`)
 ```bash
-npm install
+cd frontend
+npm install              # Install frontend-only dependencies
+npm run dev              # Run standalone Vite development server
+npm run build            # Build production static assets into frontend/dist
+npm run lint             # Validate frontend TypeScript code
 ```
 
-### 2. Database Seeding
-Initialize the development JSON database with realistic municipal test data:
+#### 2. Backend Development (`backend/`)
 ```bash
+cd backend
+npm install              # Install backend-only dependencies
+npm run dev              # Run standalone Express backend on port 3000
+npm test                 # Run all 4 backend test suites (23 integration tests)
+npm run seed             # Seed municipal database non-destructively
+npm run reset            # Reset database back to clean seeded state
+npm run lint             # Validate backend TypeScript code
+```
+
+---
+
+### Monorepo Workspaces Workflow (Root)
+
+For unified local full-stack development, the root repository leverages npm workspaces:
+
+```bash
+# Install all dependencies across both workspaces
+npm install
+
+# Start full-stack development server on http://localhost:3000
+npm run dev
+
+# Run all test suites across workspaces
+npm test
+
+# Build frontend production assets
+npm run build
+
+# Run type-checking across frontend and backend workspaces
+npm run lint
+
+# Seed municipal database
 npm run seed
 ```
-*(This creates deterministic data files in `./data/` if they do not already exist).*
 
-### 3. Start Development Server
-Launch the combined Express API backend and Vite frontend on port 3000:
+---
+
+### 🐳 Docker & Containerized Orchestration
+
+To run the complete production-grade multi-service stack (Frontend + Backend + PostgreSQL 16):
+
 ```bash
-npm run dev
+# 1. Build and start all 3 services in the background
+docker-compose up -d --build
+
+# 2. Check health status of containers
+docker-compose ps
+
+# 3. View live logs from all services
+docker-compose logs -f
+
+# 4. View logs for a specific service
+docker-compose logs -f backend
+
+# 5. Stop containers (preserves PostgreSQL data in suvidhapay_pgdata volume)
+docker-compose down
+
+# 6. Stop and wipe persistent database volume
+docker-compose down -v
 ```
-Open your browser at: **`http://localhost:3000`**
 
-### 4. Available Scripts
-
-| Command | Action |
-| :--- | :--- |
-| `npm run dev` | Starts full-stack Express server with Vite middleware on port 3000 |
-| `npm test` | Runs the automated Vitest + Supertest integration test suite |
-| `npm run seed` | Seeds initial development data non-destructively |
-| `npm run reset` | Flushes and resets `./data/` back to initial clean state |
-| `npm run lint` | Runs TypeScript type checking across the entire codebase (`tsc --noEmit`) |
-| `npm run build` | Compiles frontend assets for production into `dist/` |
-| `npm start` | Starts the production Node.js server |
+**Port Mappings in Docker:**
+- **Frontend SPA**: `http://localhost:80` (or `$FRONTEND_HOST_PORT`)
+- **Backend REST API**: `http://localhost:3001` (or `$BACKEND_HOST_PORT`)
+- **PostgreSQL Database**: `localhost:5432` (or `$POSTGRES_HOST_PORT`)
 
 ---
 

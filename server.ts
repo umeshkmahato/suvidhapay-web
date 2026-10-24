@@ -2,12 +2,18 @@ import dotenv from 'dotenv';
 import express from 'express';
 import path from 'path';
 import { createServer as createViteServer } from 'vite';
-import { loadConfig } from './src/server/infra/core';
-import { initDatabase, closeDatabase } from './src/server/db/database';
-import { createSuvidhaApiApp } from './src/server/app';
+import { loadConfig } from './backend/src/infra/core';
+import { initDatabase, closeDatabase } from './backend/src/db/database';
+import { createSuvidhaApiApp } from './backend/src/app';
 
 dotenv.config();
 
+/**
+ * Root Development Server for AI Studio
+ *
+ * Runs Express backend from backend/src while proxying/mounting Vite
+ * for the frontend from frontend/ root directory.
+ */
 async function startServer() {
   const config = loadConfig();
 
@@ -18,12 +24,13 @@ async function startServer() {
 
   if (config.nodeEnv !== 'production') {
     const vite = await createViteServer({
+      root: path.resolve(process.cwd(), 'frontend'),
       server: { middlewareMode: true },
       appType: 'spa',
     });
     app.use(vite.middlewares);
   } else {
-    const distPath = path.resolve(process.cwd(), 'dist');
+    const distPath = path.resolve(process.cwd(), 'frontend/dist');
     app.use(express.static(distPath));
     app.get('*', (_req, res) => {
       res.sendFile(path.join(distPath, 'index.html'));
