@@ -1,5 +1,13 @@
 # SuvidhaPay — Municipal Collection Management System
 
+## Verified implementation status
+
+Runtime storage is now PostgreSQL-only. LokiJS and automatic embedded-database fallback have been removed; existing legacy data files are preserved but are not loaded automatically. Demo seeding and simulated integrations require explicit non-production `SUVIDHAPAY_DEMO_MODE=true`. Do not use this flag in production.
+
+The application is **not production-ready**: SQL financial round-trip mappings, durable payment idempotency, comprehensive jurisdiction coverage, real provider integrations, browser E2E and recovery validation remain open. Earlier feature descriptions below include historical design claims, not release evidence. Current findings and actual verification are in `docs/implementation-audit.md`, `docs/requirements-traceability.md`, `docs/architecture-decisions.md` and `docs/production-readiness.md`.
+
+Use separate `backend/` and `frontend/` npm commands; there is no root npm workspace. Backend `npm run build` currently typechecks only, and `npm start` runs the TypeScript server via the installed tsx runtime. Local Compose serves the frontend on loopback port 8080 and does not publish the database. Configure local credentials before `docker compose up --build`; do not use the local Compose file as a production deployment definition.
+
 > **Transparent Collections. Trusted Governance.**  
 > A full-stack civic technology ERP and revenue collection platform designed for Indian Urban Local Bodies (ULBs), Nagar Nigams, Municipal Councils, and Cantonment Boards.
 
@@ -168,7 +176,7 @@ suwidha-pay/
 ├── .env.example                          # Environment variable configuration template
 ├── .gitignore                            # Git ignore patterns
 ├── package.json                          # Monorepo workspaces manifest ("workspaces": ["frontend", "backend"])
-├── server.ts                             # Development server bridging Express backend & Vite frontend
+├── server.ts                             # Legacy no-op root entry point; backend/frontend start separately
 └── README.md                             # Authoritative civic ERP and operational documentation
 ```
 
@@ -183,9 +191,45 @@ suwidha-pay/
 
 ---
 
+### Fully Independent Frontend + Backend Workflow
+
+Frontend and backend are started separately, each in its own process and runtime state:
+
+```bash
+# Terminal 1: frontend
+cd frontend
+npm install
+npm run dev
+
+# Terminal 2: backend
+cd backend
+npm install
+npm run dev
+```
+
+The root-level `server.ts` file is intentionally disabled as a no-op and should not be used as a bridge or shared dev server.
+
+---
+
+### Root-level checks only (thin wrappers)
+
+```bash
+npm run build:frontend
+npm run build:backend
+npm run test:backend
+npm run lint:frontend
+npm run lint:backend
+```
+
+---
+
 ### Independent Application Development
 
-Each application can be developed, built, and tested independently from within its own directory:
+````
+<userPrompt>
+Provide the fully rewritten file, incorporating the suggested code change. You must produce the complete file.
+</userPrompt>
+```
 
 #### 1. Frontend Development (`frontend/`)
 ```bash
@@ -209,28 +253,19 @@ npm run lint             # Validate backend TypeScript code
 
 ---
 
-### Monorepo Workspaces Workflow (Root)
+### Monorepo root tools only
 
-For unified local full-stack development, the root repository leverages npm workspaces:
+Use the root package as a thin wrapper for workspace-level commands, not as a shared dev server:
 
 ```bash
-# Install all dependencies across both workspaces
+# Install dependencies for both workspaces
 npm install
 
-# Start full-stack development server on http://localhost:3000
-npm run dev
-
-# Run all test suites across workspaces
-npm test
-
-# Build frontend production assets
-npm run build
-
-# Run type-checking across frontend and backend workspaces
+# Run workspace-only wrappers
+npm run build:frontend
+npm run build:backend
+npm run test:backend
 npm run lint
-
-# Seed municipal database
-npm run seed
 ```
 
 ---
