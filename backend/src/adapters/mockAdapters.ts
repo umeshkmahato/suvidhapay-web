@@ -1,4 +1,5 @@
 import crypto from 'crypto';
+import { AppError, loadConfig } from '../infra/core';
 import {
   GovVerificationStatus,
   NotificationChannel,
@@ -43,6 +44,9 @@ export class MockPaymentGatewayAdapter implements IPaymentGatewayAdapter {
     amountInr: number;
     provider?: 'RAZORPAY_MOCK' | 'CASHFREE_MOCK';
   }): Promise<PaymentGatewayOrderResult> {
+    if (!loadConfig().demoMode) {
+      throw new AppError(503, 'PAYMENT_GATEWAY_NOT_CONFIGURED', 'Online payments are unavailable until an authorized gateway is configured');
+    }
     const provider = params.provider || 'RAZORPAY_MOCK';
     const gatewayOrderId = `order_mock_${crypto.randomBytes(6).toString('hex')}`;
     const expiresAt = new Date(Date.now() + 15 * 60 * 1000).toISOString();
@@ -62,6 +66,7 @@ export class MockPaymentGatewayAdapter implements IPaymentGatewayAdapter {
     signature: string;
     secret: string;
   }): boolean {
+    if (!loadConfig().demoMode) return false;
     if (params.signature === 'MOCK_VALID_WEBHOOK_SIGNATURE') {
       return true;
     }
@@ -100,6 +105,9 @@ export class MockNotificationAdapter implements INotificationAdapter {
     messageBody: string;
     simulateFailure?: boolean;
   }): Promise<NotificationDispatchResult> {
+    if (!loadConfig().demoMode) {
+      return { status: 'FAILED', providerMessageId: '', failureReason: 'NOT_CONFIGURED: notification provider unavailable' };
+    }
     if (params.simulateFailure || params.recipientMobile.endsWith('0000')) {
       return {
         status: 'FAILED',
@@ -141,6 +149,9 @@ export class MockGovVerificationAdapter implements IGovVerificationAdapter {
     ownerName: string;
     simulateMode?: GovVerificationStatus;
   }): Promise<GovVerificationLookupResult> {
+    if (!loadConfig().demoMode) {
+      return { status: 'SERVICE_UNAVAILABLE', referenceNumber: '', ownerNameMatched: false, notes: 'NOT_CONFIGURED: authorized government integration unavailable; manual review required' };
+    }
     const clean = params.registrationNumber.toUpperCase();
     if (params.simulateMode) {
       return {

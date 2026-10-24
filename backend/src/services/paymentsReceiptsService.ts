@@ -1,5 +1,5 @@
 import crypto from 'crypto';
-import { AppError, JwtClaims, Money } from '../infra/core';
+import { AppError, JwtClaims, Money, loadConfig } from '../infra/core';
 import {
   IDataStore,
   SuvidhaDataCollections,
@@ -171,6 +171,9 @@ export class PaymentsReceiptsService {
             k.endpoint === 'POST /payments/cash'
         );
         if (existingIdem) {
+          if (existingIdem.actorId !== actor.sub) {
+            throw new AppError(409, 'IDEMPOTENCY_KEY_CONFLICT', 'Idempotency key is already in use');
+          }
           const cached = existingIdem.responseBody as {
             payment: PaymentRecord;
             receipt: ReceiptRecord;
@@ -349,6 +352,9 @@ export class PaymentsReceiptsService {
             k.endpoint === 'POST /payments/manual-upi'
         );
         if (existing) {
+          if (existing.actorId !== actor.sub) {
+            throw new AppError(409, 'IDEMPOTENCY_KEY_CONFLICT', 'Idempotency key is already in use');
+          }
           return {
             payment: (existing.responseBody as { payment: PaymentRecord }).payment,
             idempotentReplay: true,
@@ -584,6 +590,22 @@ export class PaymentsReceiptsService {
         );
       }
 
+      const linkedEntity = db.entities.find((e) => e.id === payment.entityId);
+      if (!linkedEntity) throw new AppError(404, 'ENTITY_NOT_FOUND', 'Linked entity not found');
+      assertCitizenEntityOwnership(actor, linkedEntity.id, linkedEntity.mobile);
+      if (actor.role !== 'CITIZEN' && !hasWardJurisdiction(actor, linkedEntity.wardId, db.wards)) {
+        throw new AppError(403, 'JURISDICTION_FORBIDDEN', 'Payment is outside the assigned jurisdiction');
+      }
+      if (payment.method === 'UPI_REFERENCE' && !['ADMIN', 'OFFICER'].includes(actor.role)) {
+        throw new AppError(403, 'FORBIDDEN_ROLE', 'Only authorized officers can confirm manual references');
+      }
+      if (payment.method === 'PAYMENT_GATEWAY' && !loadConfig().demoMode) {
+        throw new AppError(503, 'PAYMENT_GATEWAY_NOT_CONFIGURED', 'Gateway confirmation requires trusted provider verification');
+      }
+      if (payload.simulateOutcome && !loadConfig().demoMode) {
+        throw new AppError(400, 'SIMULATION_FORBIDDEN', 'Simulated payment outcomes are unavailable');
+      }
+
       // Duplicate webhook / verification protection
       if (
         payment.processingStatus === 'RECEIPT_GENERATED' ||
@@ -649,6 +671,9 @@ export class PaymentsReceiptsService {
         entity.id
       );
       const prevOutstandingInr = Money.paiseToInr(totalPaise);
+      if (Money.inrToPaise(payment.amountInr) > totalPaise) {
+        throw new AppError(409, 'PAYMENT_REQUIRES_RECONCILIATION', 'Outstanding balance changed; reconcile this payment before confirmation');
+      }
 
       // Atomically allocate across open dues
       const appliedAllocations = this.allocateAcrossDues(
@@ -864,6 +889,11 @@ export class PaymentsReceiptsService {
     if (actor.role === 'CITIZEN') {
       const linked = actor.linkedEntityIds || [];
       list = list.filter((p) => linked.includes(p.entityId));
+    } else if (actor.role === 'OFFICER' || actor.role === 'AGENT') {
+      list = list.filter((p) => {
+        const entity = db.entities.find((e) => e.id === p.entityId);
+        return entity && hasWardJurisdiction(actor, entity.wardId, db.wards);
+      });
     }
 
     if (filters.entityId) {
@@ -902,6 +932,18 @@ export class PaymentsReceiptsService {
       throw new AppError(404, 'PAYMENT_NOT_FOUND', `Payment ${id} was not found`);
     }
     assertCitizenEntityOwnership(actor, payment.entityId);
+    const entity = db.entities.find((e) => e.id === payment.entityId);
+    if (
+      entity &&
+      (actor.role === 'OFFICER' || actor.role === 'AGENT') &&
+      !hasWardJurisdiction(actor, entity.wardId, db.wards)
+    ) {
+      throw new AppError(
+        403,
+        'JURISDICTION_FORBIDDEN',
+        `Actor ${actor.loginIdentifier} does not have jurisdiction over Ward ${entity.wardId}`
+      );
+    }
     return payment;
   }
 
@@ -916,6 +958,11 @@ export class PaymentsReceiptsService {
     if (actor.role === 'CITIZEN') {
       const linked = actor.linkedEntityIds || [];
       list = list.filter((r) => linked.includes(r.entityId));
+    } else if (actor.role === 'OFFICER' || actor.role === 'AGENT') {
+      list = list.filter((r) => {
+        const entity = db.entities.find((e) => e.id === r.entityId);
+        return entity && hasWardJurisdiction(actor, entity.wardId, db.wards);
+      });
     }
 
     if (filters.entityId) {
@@ -946,6 +993,18 @@ export class PaymentsReceiptsService {
       throw new AppError(404, 'RECEIPT_NOT_FOUND', `Receipt ${id} was not found`);
     }
     assertCitizenEntityOwnership(actor, receipt.entityId);
+    const entity = db.entities.find((e) => e.id === receipt.entityId);
+    if (
+      entity &&
+      (actor.role === 'OFFICER' || actor.role === 'AGENT') &&
+      !hasWardJurisdiction(actor, entity.wardId, db.wards)
+    ) {
+      throw new AppError(
+        403,
+        'JURISDICTION_FORBIDDEN',
+        `Actor ${actor.loginIdentifier} does not have jurisdiction over Ward ${entity.wardId}`
+      );
+    }
     return receipt;
   }
 

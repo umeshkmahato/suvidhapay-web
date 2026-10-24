@@ -1,6 +1,6 @@
 ## 1. Current Architecture & Project Structure
 
-SuvidhaPay is structured as a TypeScript full-stack monorepo featuring an Express.js backend and a Vite React 19 SPA running together via `server.ts`.
+SuvidhaPay is structured as a TypeScript full-stack monorepo with independent frontend and backend services, each running in its own runtime and communicating through the REST API.
 
 ### High-Level Architecture Diagram
 
@@ -44,17 +44,10 @@ SuvidhaPay is structured as a TypeScript full-stack monorepo featuring an Expres
 │                                     ▼                                  │
 │  ┌──────────────────────────────────────────────────────────────────┐  │
 │  │ Repository & Unit-of-Work Abstraction (IDataStore)               │  │
-│  └────────┬─────────────────────────────────────────────┬───────────┘  │
-│           ▼ (Current)                                   ▼ (Proposed)   │
-│  ┌─────────────────────────┐             ┌───────────────────────────┐ │
-│  │ JsonFileDataStore       │             │ LokiDataStore             │ │
-│  │ (Separate JSON files    │             │ (LokiJS Collections       │ │
-│  │ + In-Memory Mutex)      │             │ + Dynamic Indexes +       │ │
-│  └─────────────────────────┘             │ LokiFsAdapter Auto-Save)  │ │
-│                                          └──────────────┬────────────┘ │
-│                                                         ▼ (Future)     │
+│  └─────────────────────────────────────────────────────┬───────────-┘  │
+│                                                        ▼               |
 │                                          ┌───────────────────────────┐ │
-│                                          │ PostgresDataStore (SQL)   │ │
+│                                          │ PostgreSQL        (SQL)   │ │
 │                                          └───────────────────────────┘ │
 └────────────────────────────────────────────────────────────────────────┘
 ```

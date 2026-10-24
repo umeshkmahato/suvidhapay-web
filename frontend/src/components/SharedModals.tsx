@@ -1,4 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
+import { BrowserQRCodeReader } from '@zxing/browser';
+import { Exception, Result } from '@zxing/library';
+import QRCode from 'qrcode';
 import {
   CheckCircle2,
   XCircle,
@@ -42,6 +45,19 @@ export const ReceiptDetailModal: React.FC<ReceiptDetailModalProps> = ({
   const isProvisional =
     receipt.status === 'PROVISIONAL_OFFLINE' ||
     receipt.status === 'PENDING_UPI_VERIFICATION';
+
+  const [qrCodeDataUrl, setQrCodeDataUrl] = useState('');
+
+  React.useEffect(() => {
+    const payload = `${receipt.receiptNumber}|${receipt.verificationCode}|${receipt.entityId}`;
+    QRCode.toDataURL(payload, {
+      width: 120,
+      margin: 1,
+      errorCorrectionLevel: 'M',
+    })
+      .then((url) => setQrCodeDataUrl(url))
+      .catch(() => setQrCodeDataUrl(''));
+  }, [receipt]);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4 overflow-y-auto">
@@ -160,7 +176,11 @@ export const ReceiptDetailModal: React.FC<ReceiptDetailModalProps> = ({
             </p>
           </div>
           <div className="flex flex-col items-center justify-center p-2 bg-white border border-slate-200 rounded-lg shrink-0">
-            <QrCode className="w-12 h-12 text-slate-800" />
+            {qrCodeDataUrl ? (
+              <img src={qrCodeDataUrl} alt="Receipt verification QR code" className="w-12 h-12 rounded-md" />
+            ) : (
+              <QrCode className="w-12 h-12 text-slate-800" />
+            )}
             <span className="text-[10px] font-mono text-slate-500 mt-1">
               SCAN TO VERIFY
             </span>
@@ -201,26 +221,60 @@ export const PublicVerificationModal: React.FC<PublicVerificationModalProps> = (
   const [query, setQuery] = useState('SUP/2026/000012345');
   const [serverVerification, setServerVerification] = useState<any>(null);
   const [, setIsVerifying] = useState(false);
+  const [isCameraOpen, setIsCameraOpen] = useState(false);
+  const [cameraError, setCameraError] = useState<string>('');
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const scannerRef = useRef<{ stop: () => void } | null>(null);
+
+  const stopScanner = React.useCallback(() => {
+    try {
+      scannerRef.current?.stop?.();
+    } catch {
+      // no-op
+    }
+    scannerRef.current = null;
+    setIsCameraOpen(false);
+  }, []);
+
+  const openCameraScanner = React.useCallback(async () => {
+    setCameraError('');
+    try {
+      const codeReader = new BrowserQRCodeReader();
+      const devices = await BrowserQRCodeReader.listVideoInputDevices();
+      if (!devices.length) {
+        throw new Error('No camera found on this device.');
+      }
+      const selectedDeviceId = devices[0].deviceId;
+      if (!videoRef.current) return;
+      const controls = await codeReader.decodeFromVideoDevice(
+        selectedDeviceId,
+        videoRef.current,
+        (result: Result | undefined, error: Exception | undefined) => {
+          if (result) {
+            const raw = result.getText();
+            const extracted = raw.includes('|') ? raw.split('|')[1] || raw : raw;
+            setQuery(extracted);
+            stopScanner();
+            return;
+          }
+          if (error && !/No result|Permission denied|NotFoundException/i.test(String(error))) {
+            setCameraError('Unable to read QR code from this camera.');
+          }
+        }
+      );
+      scannerRef.current = controls;
+      setIsCameraOpen(true);
+    } catch (error) {
+      setCameraError(
+        error instanceof Error ? error.message : 'Unable to access the camera for QR scanning.'
+      );
+      stopScanner();
+    }
+  }, [stopScanner]);
 
   React.useEffect(() => {
-    let mounted = true;
-    if (!query.trim()) {
-      setServerVerification(null);
-      return;
-    }
-    setIsVerifying(true);
-    const timer = setTimeout(async () => {
-      const res = await suvidhaApi.verifyReceiptPublic(query.trim());
-      if (mounted) {
-        setServerVerification(res.success && res.data ? res.data : null);
-        setIsVerifying(false);
-      }
-    }, 200);
-    return () => {
-      mounted = false;
-      clearTimeout(timer);
-    };
-  }, [query]);
+    return () => stopScanner();
+  }, [stopScanner]);
 
   if (!isOpen) return null;
 
@@ -273,23 +327,35 @@ export const PublicVerificationModal: React.FC<PublicVerificationModalProps> = (
               placeholder="e.g. SUP/2026/000012345 or VRF-9928-SUP26"
               className="flex-1 px-3 py-2 text-xs font-mono border border-slate-300 rounded-lg focus:outline-none focus:border-slate-900"
             />
-          </div>
-          <div className="mt-2 flex flex-wrap gap-2 text-[11px] text-slate-500">
-            <span>Try sample:</span>
             <button
-              onClick={() => setQuery('SUP/2026/000012345')}
-              className="underline hover:text-slate-900 font-mono"
+              type="button"
+              onClick={() => void openCameraScanner()}
+              className="px-3 py-2 text-[11px] font-medium text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-lg border border-slate-200"
             >
-              SUP/2026/000012345
-            </button>
-            <span>·</span>
-            <button
-              onClick={() => setQuery('INVALID-999')}
-              className="underline hover:text-slate-900 font-mono"
-            >
-              INVALID-999
+              Scan QR
             </button>
           </div>
+          {cameraError && (
+            <p className="mt-2 text-[11px] text-red-700 bg-red-50 border border-red-200 rounded-lg p-2">
+              {cameraError}
+            </p>
+          )}
+          {isCameraOpen && (
+            <div className="mt-3 border border-slate-200 rounded-lg overflow-hidden bg-slate-100">
+              <video ref={videoRef} className="w-full h-48 object-cover bg-slate-900" playsInline muted autoPlay />
+              <div className="flex items-center justify-between px-3 py-2 bg-white text-[11px] text-slate-600 border-t border-slate-200">
+                <span>Live camera scan</span>
+                <button
+                  type="button"
+                  onClick={stopScanner}
+                  className="text-slate-700 hover:text-slate-900 font-medium"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          )}
+
         </div>
 
         <div className="mt-5">

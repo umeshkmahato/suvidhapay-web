@@ -7,6 +7,7 @@ import {
   paginateArray,
   correlationAndSecurityHeaders,
   JwtClaims,
+  loadConfig,
 } from './infra/core';
 import { IDataStore } from './repositories/interfaces';
 import {
@@ -60,8 +61,27 @@ import { buildOpenApiSpec } from './openapi/spec';
 
 export function createSuvidhaApiApp(store: IDataStore): express.Express {
   const app = express();
-  app.use(express.json({ limit: '2mb' }));
+  const config = loadConfig();
+  app.disable('x-powered-by');
   app.use(correlationAndSecurityHeaders);
+  app.use((req, res, next) => {
+    const origin = req.header('origin');
+    if (origin && config.corsOrigin !== '*' && origin !== config.corsOrigin) {
+      return next(new AppError(403, 'ORIGIN_FORBIDDEN', 'Request origin is not allowed'));
+    }
+    if (origin) {
+      res.setHeader('Access-Control-Allow-Origin', config.corsOrigin === '*' ? '*' : origin);
+      res.vary('Origin');
+    }
+    if (req.method === 'OPTIONS') {
+      res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PATCH, OPTIONS');
+      res.setHeader('Access-Control-Allow-Headers', 'Authorization, Content-Type, Idempotency-Key, X-Correlation-Id');
+      res.status(204).end();
+      return;
+    }
+    next();
+  });
+  app.use(express.json({ limit: '2mb' }));
 
   const gatewayAdapter = new MockPaymentGatewayAdapter();
   const notificationAdapter = new MockNotificationAdapter();
@@ -122,7 +142,7 @@ export function createSuvidhaApiApp(store: IDataStore): express.Express {
   const handleHealth = asyncHandler(async (_req, res) => {
     const db = await store.readAll();
     const isPostgres = store.constructor.name === 'PostgresDataStore';
-    const databaseType = isPostgres ? 'POSTGRESQL' : 'LOKIJS';
+    const databaseType = isPostgres ? 'POSTGRESQL' : 'JSON_TEST_STORE';
     const persistenceMode = isPostgres
       ? 'POSTGRES_VOLUME'
       : typeof (store as any).getPersistenceMode === 'function'
@@ -1430,12 +1450,14 @@ export function createSuvidhaApiApp(store: IDataStore): express.Express {
   app.use(
     (err: unknown, _req: Request, res: Response, _next: NextFunction): void => {
       if (err instanceof AppError) {
-        sendError(res, err.statusCode, err.code, err.message, err.details);
+        sendError(res, err.statusCode, err.code, config.nodeEnv === 'production' && err.statusCode >= 500 ? 'Service temporarily unavailable' : err.message, config.nodeEnv === 'production' ? [] : err.details);
         return;
       }
-      const message =
-        err instanceof Error ? err.message : 'Unexpected server error';
-      sendError(res, 500, 'INTERNAL_SERVER_ERROR', message);
+      if (err instanceof SyntaxError && 'body' in err) {
+        sendError(res, 400, 'INVALID_JSON', 'Request body must contain valid JSON');
+        return;
+      }
+      sendError(res, 500, 'INTERNAL_SERVER_ERROR', 'Unexpected server error');
     }
   );
 

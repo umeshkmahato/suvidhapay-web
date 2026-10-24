@@ -3,12 +3,12 @@ import path from 'path';
 import os from 'os';
 import request from 'supertest';
 import { describe, it, expect, beforeEach, afterAll } from 'vitest';
-import { LokiDataStore } from '../repositories/lokiDataStore';
+import { JsonFileDataStore } from '../repositories/jsonDataStore';
 import { createSuvidhaApiApp } from '../app';
 
 describe('SuvidhaPay Complete Backend REST API (/api/v1) Suite', () => {
   let tempDir: string;
-  let store: LokiDataStore;
+  let store: JsonFileDataStore;
   let app: ReturnType<typeof createSuvidhaApiApp>;
 
   let adminToken = '';
@@ -19,7 +19,7 @@ describe('SuvidhaPay Complete Backend REST API (/api/v1) Suite', () => {
 
   beforeEach(async () => {
     tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'suvidhapay-test-'));
-    store = new LokiDataStore(tempDir);
+    store = new JsonFileDataStore(tempDir);
     await store.resetToDeterministicSeed();
     app = createSuvidhaApiApp(store);
 
@@ -122,6 +122,45 @@ describe('SuvidhaPay Complete Backend REST API (/api/v1) Suite', () => {
   // 2. AUTHORIZATION, JURISDICTION & CITIZEN ISOLATION TESTS
   // ==========================================================================
   it('enforces RBAC, Officer/Agent Ward jurisdiction, and Citizen entity ownership isolation', async () => {
+    const agentEntities = await request(app)
+      .get('/api/v1/entities')
+      .set('Authorization', `Bearer ${agentW12Token}`);
+    expect(agentEntities.status).toBe(200);
+    expect(agentEntities.body.data.map((entity: { id: string }) => entity.id).sort()).toEqual([
+      'ENT-1001',
+      'ENT-1003',
+    ]);
+
+    const agentDues = await request(app)
+      .get('/api/v1/dues')
+      .set('Authorization', `Bearer ${agentW12Token}`);
+    expect(agentDues.status).toBe(200);
+    expect(agentDues.body.data.every((due: { entityId: string }) =>
+      ['ENT-1001', 'ENT-1003'].includes(due.entityId)
+    )).toBe(true);
+
+    const agentReceipts = await request(app)
+      .get('/api/v1/receipts')
+      .set('Authorization', `Bearer ${agentW12Token}`);
+    expect(agentReceipts.status).toBe(200);
+    expect(agentReceipts.body.data.every((receipt: { entityId: string }) =>
+      ['ENT-1001', 'ENT-1003'].includes(receipt.entityId)
+    )).toBe(true);
+
+    const agentPayments = await request(app)
+      .get('/api/v1/payments')
+      .set('Authorization', `Bearer ${agentW12Token}`);
+    expect(agentPayments.status).toBe(200);
+    expect(agentPayments.body.data.every((payment: { entityId: string }) =>
+      ['ENT-1001', 'ENT-1003'].includes(payment.entityId)
+    )).toBe(true);
+
+    const crossWardAgentEntity = await request(app)
+      .get('/api/v1/entities/ENT-1002/outstanding')
+      .set('Authorization', `Bearer ${agentW12Token}`);
+    expect(crossWardAgentEntity.status).toBe(403);
+    expect(crossWardAgentEntity.body.error.code).toBe('JURISDICTION_FORBIDDEN');
+
     // Agent cannot create a rate master (ADMIN only)
     const rateAttempt = await request(app)
       .post('/api/v1/rates')
@@ -212,6 +251,36 @@ describe('SuvidhaPay Complete Backend REST API (/api/v1) Suite', () => {
       });
     expect(badMobileRes.status).toBe(400);
     expect(badMobileRes.body.error.code).toBe('VALIDATION_ERROR');
+
+    const agentRegistration = await request(app)
+      .post('/api/v1/entities')
+      .set('Authorization', `Bearer ${agentW12Token}`)
+      .send({
+        registrationNumber: 'AGENT-REG-TEST-01',
+        entityType: 'VEHICLE',
+        name: 'Ward 12 Registration Test',
+        mobile: '9811452322',
+        address: 'Sector 18 Noida',
+        categoryId: 'CAT-AUTO',
+        wardId: 'WD-12',
+      });
+    expect(agentRegistration.status).toBe(201);
+    expect(agentRegistration.body.data.wardId).toBe('WD-12');
+
+    const crossWardRegistration = await request(app)
+      .post('/api/v1/entities')
+      .set('Authorization', `Bearer ${agentW12Token}`)
+      .send({
+        registrationNumber: 'AGENT-REG-TEST-02',
+        entityType: 'VEHICLE',
+        name: 'Cross Ward Registration Test',
+        mobile: '9811452323',
+        address: 'Botanical Transit Hub',
+        categoryId: 'CAT-AUTO',
+        wardId: 'WD-14',
+      });
+    expect(crossWardRegistration.status).toBe(403);
+    expect(crossWardRegistration.body.error.code).toBe('JURISDICTION_FORBIDDEN');
   });
 
   // ==========================================================================

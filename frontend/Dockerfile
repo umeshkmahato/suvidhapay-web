@@ -3,13 +3,13 @@
 # ============================================================================
 
 # Stage 1: Build React 19 / Vite Application
-FROM node:22-alpine AS builder
+FROM node:24-alpine AS builder
 
 WORKDIR /app
 
 # Install build dependencies
-COPY package.json ./
-RUN npm install --ignore-scripts
+COPY package.json package-lock.json ./
+RUN npm ci --ignore-scripts
 
 # Copy source code and build assets
 COPY . ./
@@ -33,12 +33,15 @@ COPY nginx.conf /etc/nginx/conf.d/default.conf
 # Copy production static assets from builder stage
 COPY --from=builder /app/dist /usr/share/nginx/html
 
+RUN chown -R nginx:nginx /var/cache/nginx /run /etc/nginx/conf.d /usr/share/nginx/html
+USER nginx
+
 # Expose HTTP port
-EXPOSE 80
+EXPOSE 8080
 
 # Health check to ensure Nginx is serving content
 HEALTHCHECK --interval=15s --timeout=5s --start-period=5s --retries=3 \
-  CMD wget --quiet --tries=1 --spider http://127.0.0.1:80/ || exit 1
+  CMD wget --quiet --tries=1 --spider http://127.0.0.1:8080/ || exit 1
 
 # Start Nginx in foreground
 CMD ["nginx", "-g", "daemon off;"]

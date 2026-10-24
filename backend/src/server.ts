@@ -15,7 +15,9 @@ async function startStandaloneBackend() {
   const config = loadConfig();
 
   console.log(`[SuvidhaPay Backend] Initializing database engine: ${config.databaseEngine}...`);
+  console.log('[SuvidhaPay Backend] Running database migration + seed preflight before startup...');
   const store = await initDatabase({ dataDir: config.dataDir });
+  console.log('[SuvidhaPay Backend] Database preflight complete. Starting HTTP server...');
 
   const app = createSuvidhaApiApp(store);
 
@@ -25,16 +27,23 @@ async function startStandaloneBackend() {
     );
   });
 
-  const shutdown = async () => {
-    console.log('[SuvidhaPay Backend] Graceful termination signal received. Closing connections...');
-    try {
-      await closeDatabase();
-    } catch (e) {
-      console.error('[SuvidhaPay Backend] Error closing database:', e);
-    }
-    server.close(() => {
-      console.log('[SuvidhaPay Backend] HTTP server closed cleanly.');
-      process.exit(0);
+  let shuttingDown = false;
+  const shutdown = () => {
+    if (shuttingDown) return;
+    shuttingDown = true;
+    console.log('[SuvidhaPay Backend] Graceful termination signal received. Draining requests...');
+    const deadline = setTimeout(() => process.exit(1), 30000);
+    deadline.unref();
+    server.close(async () => {
+      try {
+        await closeDatabase();
+        clearTimeout(deadline);
+        console.log('[SuvidhaPay Backend] HTTP server and database closed cleanly.');
+        process.exitCode = 0;
+      } catch {
+        console.error('[SuvidhaPay Backend] Database shutdown failed.');
+        process.exitCode = 1;
+      }
     });
   };
 

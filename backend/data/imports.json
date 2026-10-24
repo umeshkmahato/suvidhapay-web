@@ -1,0 +1,61 @@
+[
+  {
+    "id": "IMP-2026-001",
+    "fileName": "legacy_commercial_vehicles_sector18.csv",
+    "importType": "VEHICLES",
+    "status": "COMMITTED",
+    "totalRows": 14,
+    "validRowsCount": 14,
+    "errorRowsCount": 0,
+    "validStagingRecords": [
+      {
+        "registrationNumber": "UP-16-AB-1234",
+        "ownerName": "Ramesh Chandra Yadav",
+        "mobile": "9811452310",
+        "category": "Auto-Rickshaw (Three-Wheeler)",
+        "ward": "W-12",
+        "initialOutstanding": 800
+      }
+    ],
+    "rowErrors": [],
+    "createdBy": "USR-ADM-01",
+    "createdAt": "2026-09-15T10:00:00.000Z",
+    "committedAt": "2026-09-15T10:12:00.000Z"
+  },
+  {
+    "id": "IMP-2026-002",
+    "fileName": "staged_tehbazari_vendors_phase2.csv",
+    "importType": "VENDORS",
+    "status": "STAGED",
+    "totalRows": 3,
+    "validRowsCount": 2,
+    "errorRowsCount": 1,
+    "validStagingRecords": [
+      {
+        "registrationNumber": "KSK-MND-01",
+        "name": "Mukesh Fruit Stall",
+        "mobile": "9811223344",
+        "category": "Stationary Kiosk / Tehbazari Vendor",
+        "ward": "W-19",
+        "address": "Phase 2 Mandi Gate 1"
+      },
+      {
+        "registrationNumber": "KSK-MND-02",
+        "name": "Shyam Tea Point",
+        "mobile": "9877665544",
+        "category": "Stationary Kiosk / Tehbazari Vendor",
+        "ward": "W-19",
+        "address": "Phase 2 Mandi Shed 4"
+      }
+    ],
+    "rowErrors": [
+      {
+        "rowNumber": 3,
+        "identifier": "UNKNOWN-VEND",
+        "errorMessage": "Invalid Indian mobile number. Must be 10 digits starting with 6-9."
+      }
+    ],
+    "createdBy": "USR-OFF-01",
+    "createdAt": "2026-10-12T14:30:00.000Z"
+  }
+]

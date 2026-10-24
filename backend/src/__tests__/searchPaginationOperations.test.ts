@@ -3,19 +3,19 @@ import path from 'path';
 import os from 'os';
 import request from 'supertest';
 import { describe, it, expect, beforeEach, afterAll } from 'vitest';
-import { LokiDataStore } from '../repositories/lokiDataStore';
+import { JsonFileDataStore } from '../repositories/jsonDataStore';
 import { createSuvidhaApiApp } from '../app';
 
 describe('SuvidhaPay Search, Pagination, Operations & Audit Suite', () => {
   let tempDir: string;
-  let store: LokiDataStore;
+  let store: JsonFileDataStore;
   let app: ReturnType<typeof createSuvidhaApiApp>;
   let adminToken = '';
   let officerToken = '';
 
   beforeEach(async () => {
     tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'suvidhapay-ops-test-'));
-    store = new LokiDataStore(tempDir);
+    store = new JsonFileDataStore(tempDir);
     await store.resetToDeterministicSeed();
     app = createSuvidhaApiApp(store);
 
